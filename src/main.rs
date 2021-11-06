@@ -46,13 +46,21 @@ impl Renderer {
             mem::swap(&mut y0, &mut y1);
         }
         
+        let dx = (x1-x0) as f32;
+        let dy = (y1-y0) as f32;
+        let derror = (dy/dx).abs();
+        let mut error = 0.0;
+        let mut y = y0;
         for x in x0..x1 {
-            let t = ((x-x0) as f32) / ((x1-x0) as f32);
-            let y = (y0 as f32) * (1.0 - t) + ((y1 as f32)*t);
             if steep {
-                self.pixel(y as u32, x as u32, color);
+                self.pixel(y as u32, x as u32, color)
             } else {
-                self.pixel(x as u32, y as u32, color);
+                self.pixel(x as u32, y as u32, color)
+            }
+            error += derror;
+            if error > 0.5 {
+                y += if y1 > y0 { 1 } else { -1 };
+                error -= 1.0;
             }
         }
     }
