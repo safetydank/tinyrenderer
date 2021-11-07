@@ -1,9 +1,9 @@
 use std::mem;
 
 pub struct Renderer {
-    width: u32,
-    height: u32,
-    buf: Vec<u32>
+    pub width: u32,
+    pub height: u32,
+    pub buf: Vec<u32>
 }
 
 impl Renderer {
@@ -15,7 +15,15 @@ impl Renderer {
         }
     }
     
-    pub fn pixel(&mut self, x: u32, y: u32, color: u32) {
+    pub fn pixel(&mut self, mut x: u32, mut y: u32, color: u32) {
+        //  clamp x and y within 0-indexed viewport coords
+        if x >= self.width {
+            x = self.width - 1;
+        }
+        if y >= self.height {
+            y = self.height - 1;
+        }
+
         let offset = ((self.height - y - 1) * self.width + x) as usize;
         self.buf[offset] = color;
     }
