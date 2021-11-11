@@ -14,10 +14,12 @@ use std::fs::File;
 use std::io::BufWriter;
 
 mod renderer;
-pub use renderer::Renderer;
-
 mod objloader;
-pub use objloader::{load_obj, Mesh};
+mod geometry;
+
+use renderer::Renderer;
+use objloader::load_obj;
+use geometry::Vec2i;
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
@@ -38,24 +40,21 @@ pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {
 }
 
 fn draw(r: &mut Renderer) {
-    let mesh = objloader::load_obj("obj/african_head.obj");
+    let mesh = load_obj("obj/african_head.obj");
 
     for tri in mesh.vis.chunks_exact(3) {
         let w = (r.width - 1) as f32;
         let h = (r.height - 1) as f32;
         println!("Triangle {} {} {}", tri[0], tri[1], tri[2]);
-        for j in 0..3 {
-            let i0 = tri[j] as usize;
-            let i1 = tri[(j+1) % 3] as usize;
-            let v0 = &mesh.vs[i0];
-            let v1 = &mesh.vs[i1];
-            let x0 = (v0.x + 1.0) * w / 2.0;
-            let y0 = (v0.y + 1.0) * h / 2.0;
-            let x1 = (v1.x + 1.0) * w / 2.0;
-            let y1 = (v1.y + 1.0) * h / 2.0;
-            println!("Render x0 {} y0 {} x1 {} y1 {}", x0, y0, x1, y1);
-            r.line(x0 as i32, y0 as i32, x1 as i32, y1 as i32, 0xffffffff);
-        }
+        // project vertices into screen space points
+        let pts: Vec<Vec2i> = tri.iter().map(|i| {
+            let v = &mesh.vs[*i as usize];
+            Vec2i{
+                x: ((v.x + 1.0) * w / 2.0) as i32,
+                y: ((v.y + 1.0) * h / 2.0) as i32,
+            }
+        }).collect();
+        r.triangle(pts[0], pts[1], pts[2], 0xffffffff);
     }
 }
 

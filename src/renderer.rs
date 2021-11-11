@@ -1,4 +1,5 @@
 use std::mem;
+use crate::geometry::{Vec3f, Vec2i};
 
 pub struct Renderer {
     pub width: i32,
@@ -55,7 +56,13 @@ impl Renderer {
             }
         }
     }
-
+    
+    pub fn triangle(&mut self, t0: Vec2i, t1: Vec2i, t2: Vec2i, color: u32) {
+        self.line(t0.x, t0.y, t1.x, t1.y, color);
+        self.line(t1.x, t1.y, t2.x, t2.y, color);
+        self.line(t2.x, t2.y, t0.x, t0.y, color);
+    }
+    
     pub fn draw(&self, frame: &mut [u8]) {
         for (b, p) in self.buf.iter().zip(frame.chunks_exact_mut(4)) {
             p.copy_from_slice(&b.to_be_bytes());
