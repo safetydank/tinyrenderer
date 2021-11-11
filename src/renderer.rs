@@ -1,27 +1,24 @@
 use std::mem;
 
 pub struct Renderer {
-    pub width: u32,
-    pub height: u32,
+    pub width: i32,
+    pub height: i32,
     pub buf: Vec<u32>
 }
 
 impl Renderer {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: i32, height: i32) -> Self {
         Self {
             width,
             height,
-            buf: vec![0; (width * height) as usize],
+            buf: vec![0x000000ff; (width * height) as usize],
         }
     }
     
-    pub fn pixel(&mut self, mut x: u32, mut y: u32, color: u32) {
-        //  clamp x and y within 0-indexed viewport coords
-        if x >= self.width {
-            x = self.width - 1;
-        }
-        if y >= self.height {
-            y = self.height - 1;
+    pub fn pixel(&mut self, x: i32, y: i32, color: u32) {
+        //  clip pixels outside viewport
+        if x < 0 || x >= self.width || y < 0 || y > self.height {
+            return
         }
 
         let offset = ((self.height - y - 1) * self.width + x) as usize;
@@ -47,9 +44,9 @@ impl Renderer {
         let mut y = y0;
         for x in x0..x1 {
             if steep {
-                self.pixel(y as u32, x as u32, color)
+                self.pixel(y, x, color);
             } else {
-                self.pixel(x as u32, y as u32, color)
+                self.pixel(x, y, color);
             }
             error2 += derror2;
             if error2 > dx {
