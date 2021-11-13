@@ -8,6 +8,7 @@ use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
+use rand::prelude::*;
 
 use std::path::Path;
 use std::fs::File;
@@ -41,11 +42,12 @@ pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {
 
 fn draw(r: &mut Renderer) {
     let mesh = load_obj("obj/african_head.obj");
+    let mut rng = rand::thread_rng();
 
     for tri in mesh.vis.chunks_exact(3) {
         let w = (r.width - 1) as f32;
         let h = (r.height - 1) as f32;
-        println!("Triangle {} {} {}", tri[0], tri[1], tri[2]);
+        // println!("Triangle {} {} {}", tri[0], tri[1], tri[2]);
         // project vertices into screen space points
         let pts: Vec<Vec2i> = tri.iter().map(|i| {
             let v = &mesh.vs[*i as usize];
@@ -54,7 +56,9 @@ fn draw(r: &mut Renderer) {
                 y: ((v.y + 1.0) * h / 2.0) as i32,
             }
         }).collect();
-        r.triangle(pts[0], pts[1], pts[2], 0xffffffff);
+        let color = rng.gen::<u32>() | 0xff;
+        // r.triangle(pts[0], pts[1], pts[2], color);
+        r.triangle_fill(pts, color);
     }
 }
 

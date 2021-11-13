@@ -22,7 +22,7 @@ pub fn load_obj(path: &str) -> Mesh {
             let y = values.next().unwrap().parse::<f32>().unwrap();
             let z = values.next().unwrap().parse::<f32>().unwrap();
             mesh.vs.push(Vec3f::new(x, y, z));
-            println!("Pushed x {} y {} z {}", x, y, z);
+            // println!("Pushed x {} y {} z {}", x, y, z);
         } else if line.starts_with("f ") {
             let mut values = line.split(" ").skip(1);
             for _ in 0..3 {
