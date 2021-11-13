@@ -8,7 +8,7 @@ use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use rand::prelude::*;
+use rand;
 
 use std::path::Path;
 use std::fs::File;
@@ -44,6 +44,8 @@ fn draw(r: &mut Renderer) {
     let mesh = load_obj("obj/african_head.obj");
     let mut rng = rand::thread_rng();
 
+    let light_dir = Vec3f::new(0.0, 0.0, -1.0);
+
     for tri in mesh.vis.chunks_exact(3) {
         let w = (r.width - 1) as f32;
         let h = (r.height - 1) as f32;
@@ -64,7 +66,6 @@ fn draw(r: &mut Renderer) {
         
         // normal
         let n = cross(vs[2].sub(vs[0]), vs[1].sub(vs[0])).normalized();
-        let light_dir = Vec3f::new(0.0, 0.0, -1.0);
         let intensity = (dot(n, light_dir) * 255.0) as u32;
 
         // let color = rng.gen::<u32>() | 0xff;
