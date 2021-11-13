@@ -20,7 +20,7 @@ mod geometry;
 
 use renderer::Renderer;
 use objloader::load_obj;
-use geometry::Vec2i;
+use geometry::{Vec2i, Vec3f, cross, dot};
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
@@ -48,17 +48,31 @@ fn draw(r: &mut Renderer) {
         let w = (r.width - 1) as f32;
         let h = (r.height - 1) as f32;
         // println!("Triangle {} {} {}", tri[0], tri[1], tri[2]);
+        
+        // world space vertices
+        let vs: Vec<Vec3f> = tri.iter().map(|i| {
+            mesh.vs[*i as usize]
+        }).collect();
+
         // project vertices into screen space points
-        let pts: Vec<Vec2i> = tri.iter().map(|i| {
-            let v = &mesh.vs[*i as usize];
+        let pts: Vec<Vec2i> = vs.iter().map(|v| {
             Vec2i{
                 x: ((v.x + 1.0) * w / 2.0) as i32,
                 y: ((v.y + 1.0) * h / 2.0) as i32,
             }
         }).collect();
-        let color = rng.gen::<u32>() | 0xff;
+        
+        // normal
+        let n = cross(vs[2].sub(vs[0]), vs[1].sub(vs[0])).normalized();
+        let light_dir = Vec3f::new(0.0, 0.0, -1.0);
+        let intensity = (dot(n, light_dir) * 255.0) as u32;
+
+        // let color = rng.gen::<u32>() | 0xff;
         // r.triangle(pts[0], pts[1], pts[2], color);
-        r.triangle_fill(pts, color);
+        if intensity > 0 {
+            let color = (intensity<<24) | (intensity<<16) | (intensity<<8) | 0xff;
+            r.triangle_fill(pts, color);
+        }
     }
 }
 

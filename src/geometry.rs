@@ -10,12 +10,21 @@ impl Vec3f {
         Self { x, y, z }
     }
     
-    pub fn add(&mut self, v: Vec3f) -> Vec3f {
+    pub fn add(&self, v: Vec3f) -> Vec3f {
         Vec3f::new(self.x + v.x, self.y + v.y, self.z + v.z)
     }
 
-    pub fn sub(&mut self, v: Vec3f) -> Vec3f {
+    pub fn sub(&self, v: Vec3f) -> Vec3f {
         Vec3f::new(self.x - v.x, self.y - v.y, self.z - v.z)
+    }
+    
+    pub fn length(&self) -> f32 {
+        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+    }
+
+    pub fn normalized(&self) -> Vec3f {
+        let rinv = 1.0 / self.length();
+        Vec3f::new(self.x * rinv, self.y * rinv, self.z * rinv)
     }
 }
 
@@ -41,6 +50,10 @@ impl Vec2i {
 
 pub fn cross(v1: Vec3f, v2: Vec3f) -> Vec3f {
     Vec3f::new(v1.y*v2.z - v1.z*v2.y, v1.z*v2.x - v1.x*v2.z, v1.x*v2.y - v1.y*v2.x)
+}
+
+pub fn dot(v1: Vec3f, v2: Vec3f) -> f32 {
+    v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
 }
 
 pub fn barycentric(pts: &Vec<Vec2i>, p: Vec2i) -> Vec3f { 
