@@ -1,14 +1,31 @@
 use std::fs;
 use crate::geometry::Vec3f;
+use glam::Vec3A;
 
-pub struct Mesh {
+pub struct Mesh<T> {
     //  vertices
-    pub vs: Vec<Vec3f>,
+    pub vs: Vec<T>,
     //  vertex indices (triangles)
     pub vis: Vec<i32>,
 }
 
-pub fn load_obj(path: &str) -> Mesh {
+pub trait Vector3 {
+    fn create(x: f32, y: f32, z: f32) -> Self;
+}
+
+impl Vector3 for Vec3f {
+    fn create(x: f32, y: f32, z: f32) -> Self {
+        Vec3f::new(x, y, z)
+    }
+}
+
+impl Vector3 for Vec3A {
+    fn create(x: f32, y: f32, z: f32) -> Self {
+        Vec3A::new(x, y, z)
+    }
+}
+
+pub fn load_obj<T: Vector3>(path: &str) -> Mesh<T> {
     let mut mesh = Mesh::new();
 
     // hacking an obj reader with no error handling
@@ -21,7 +38,7 @@ pub fn load_obj(path: &str) -> Mesh {
             let x = values.next().unwrap().parse::<f32>().unwrap();
             let y = values.next().unwrap().parse::<f32>().unwrap();
             let z = values.next().unwrap().parse::<f32>().unwrap();
-            mesh.vs.push(Vec3f::new(x, y, z));
+            mesh.vs.push(T::create(x, y, z));
             // println!("Pushed x {} y {} z {}", x, y, z);
         } else if line.starts_with("f ") {
             let mut values = line.split(" ").skip(1);
@@ -35,10 +52,10 @@ pub fn load_obj(path: &str) -> Mesh {
     mesh
 }
 
-impl Mesh {
+impl<T: Vector3> Mesh<T> {
     pub fn new() -> Self {
         Self {
-            vs: vec![Vec3f::new(0.0, 0.0, 0.0)],
+            vs: vec![T::create(0.0, 0.0, 0.0)],
             vis: vec![],
         }
     }

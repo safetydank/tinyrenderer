@@ -1,5 +1,7 @@
 use std::{cmp, mem};
-use crate::geometry::{Vec3f, Vec2i, barycentric};
+use glam::IVec2;
+
+use crate::geometry::{Vec2i, Vec3f, barycentric, barycentric_glam};
 
 pub struct Renderer {
     pub width: i32,
@@ -84,15 +86,30 @@ impl Renderer {
             }
 
         }
-        // for (P.x=bboxmin.x; P.x<=bboxmax.x; P.x++) { 
-        //     for (P.y=bboxmin.y; P.y<=bboxmax.y; P.y++) { 
-        //         Vec3f bc_screen  = barycentric(pts, P); 
-        //         if (bc_screen.x<0 || bc_screen.y<0 || bc_screen.z<0) continue; 
-        //         image.set(P.x, P.y, color); 
-        //     } 
-        // } 
     }
     
+    pub fn triangle_fill_glam(&mut self, tri: Vec<IVec2>, color: u32) {
+        let mut bboxmin = IVec2::new(self.width-1,  self.height-1); 
+        let mut bboxmax = IVec2::new(0, 0); 
+        let clamp = IVec2::new(self.width-1, self.height-1); 
+        for pt in tri.iter() {
+            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x)); 
+            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y)); 
+            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x)); 
+            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y)); 
+        } 
+        for x in bboxmin.x..bboxmax.x {
+            for y in bboxmin.y..bboxmax.y {
+                let p = IVec2::new(x, y);
+                let bc_screen = barycentric_glam(&tri, p);
+                if bc_screen.x < 0.0 || bc_screen.y < 0.0 || bc_screen.z < 0.0  {
+                    continue;
+                }
+                self.pixel(x, y, color);
+            }
+        }
+    }
+
     pub fn draw(&self, frame: &mut [u8]) {
         for (b, p) in self.buf.iter().zip(frame.chunks_exact_mut(4)) {
             p.copy_from_slice(&b.to_be_bytes());
