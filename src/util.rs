@@ -2,7 +2,7 @@ use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
 
-use glam::{IVec2, Vec3A};
+use glam::Vec3A;
 
 use crate::objloader::Mesh;
 use crate::renderer::Renderer;

@@ -1,11 +1,14 @@
 use std::fs;
-use glam::Vec3A;
+use glam::{Vec2, Vec3A};
+use regex::Regex;
 
 pub struct Mesh<T> {
     //  vertices
     pub vs: Vec<T>,
     //  vertex indices (triangles)
     pub vis: Vec<i32>,
+    //  texture indices
+    pub tex: Vec<Vec2>,
 }
 
 pub trait Vector3 {
@@ -25,20 +28,30 @@ pub fn load_obj<T: Vector3>(path: &str) -> Mesh<T> {
     let content = fs::read_to_string(path).expect("Error reading file");
     let lines = content.split("\n");
 
+    let re = Regex::new(r" +").expect("Invalid regex");
+
     for line in lines {
-        if line.starts_with("v ") {
-            let mut values = line.split(" ").skip(1);
-            let x = values.next().unwrap().parse::<f32>().unwrap();
-            let y = values.next().unwrap().parse::<f32>().unwrap();
-            let z = values.next().unwrap().parse::<f32>().unwrap();
-            mesh.vs.push(T::create(x, y, z));
-            // println!("Pushed x {} y {} z {}", x, y, z);
-        } else if line.starts_with("f ") {
-            let mut values = line.split(" ").skip(1);
-            for _ in 0..3 {
-                let index = values.next().unwrap().split("/").next().unwrap().parse::<i32>().unwrap();
-                mesh.vis.push(index);
-            }
+        let mut tokens = re.split(line);
+        let field = tokens.next();
+        match field {
+            Some(t @ ("v" | "vt")) => {
+                let x = tokens.next().unwrap().parse::<f32>().unwrap();
+                let y = tokens.next().unwrap().parse::<f32>().unwrap();
+                let z = tokens.next().unwrap().parse::<f32>().unwrap();
+                
+                match t {
+                    "v" => mesh.vs.push(T::create(x, y, z)),
+                    "vt" => mesh.tex.push(Vec2::new(x, y)),
+                    _ => { },
+                }
+            },
+            Some("f") => {
+                for _ in 0..3 {
+                    let index = tokens.next().unwrap().split("/").next().unwrap().parse::<i32>().unwrap();
+                    mesh.vis.push(index);
+                }
+            },
+            Some(_) | None => { },
         }
     }
     
@@ -50,6 +63,7 @@ impl<T: Vector3> Mesh<T> {
         Self {
             vs: vec![T::create(0.0, 0.0, 0.0)],
             vis: vec![],
+            tex: vec![Vec2::new(0.0, 0.0)],
         }
     }
 }

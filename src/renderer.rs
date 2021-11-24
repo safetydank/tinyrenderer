@@ -76,38 +76,15 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    // pub fn triangle_fill(&mut self, tri: Vec<IVec2>, color: u32) {
-    //     let mut bboxmin = IVec2::new(self.width-1,  self.height-1); 
-    //     let mut bboxmax = IVec2::new(0, 0); 
-    //     let clamp = IVec2::new(self.width-1, self.height-1); 
-    //     for pt in tri.iter() {
-    //         bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x)); 
-    //         bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y)); 
-    //         bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x)); 
-    //         bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y)); 
-    //     } 
-    //     
-    //     for x in bboxmin.x..bboxmax.x {
-    //         for y in bboxmin.y..bboxmax.y {
-    //             let p = IVec2::new(x, y);
-    //             let bc_screen = barycentric(&tri, p);
-    //             if bc_screen.x < 0.0 || bc_screen.y < 0.0 || bc_screen.z < 0.0  {
-    //                 continue;
-    //             }
-    //             self.pixel(x, y, color);
-    //         }
-    //     }
-    // }
-
     pub fn triangle_fill(&mut self, tri: Vec<Vec3A>, color: u32) {
         let mut bboxmin = IVec2::new(self.width-1,  self.height-1); 
         let mut bboxmax = IVec2::new(0, 0); 
         let clamp = IVec2::new(self.width-1, self.height-1); 
         for pt in tri.iter() {
-            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x as i32)); 
-            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y as i32)); 
-            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x as i32)); 
-            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y as i32)); 
+            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x.floor() as i32)); 
+            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y.floor() as i32)); 
+            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x.ceil() as i32)); 
+            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y.ceil() as i32)); 
         } 
         
         for x in bboxmin.x..bboxmax.x {
@@ -117,8 +94,10 @@ impl Renderer {
                 if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0  {
                     continue;
                 }
-                let z = tri.iter().zip([bc.x, bc.y, bc.z].iter())
-                    .map(|(v, bc)| v.z * bc).sum();
+                let z = tri.iter()
+                    .zip([bc.x, bc.y, bc.z])
+                    .map(|(v, bc)| v.z * bc)
+                    .sum();
                 let zindex = (self.width * y + x) as usize;
                 if self.zbuf[zindex] < z {
                     self.zbuf[zindex] = z;

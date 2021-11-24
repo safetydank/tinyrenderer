@@ -15,6 +15,7 @@ rand = "0.8.4"
 winit = "0.25"
 winit_input_helper = "0.10"
 glam = "0.20.0"
+regex = "1.5.4"
 
 [dev-dependencies]
 criterion = "0.3"
