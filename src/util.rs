@@ -38,10 +38,11 @@ pub fn draw_mesh(r: &mut Renderer, mesh: &Mesh<Vec3A>) {
         }).collect();
 
         // project vertices into screen space points
-        let pts: Vec<IVec2> = vs.iter().map(|v| {
-            IVec2::new(
-                ((v.x + 1.0) * w / 2.0) as i32,
-                ((v.y + 1.0) * h / 2.0) as i32,
+        let pts: Vec<Vec3A> = vs.iter().map(|v| {
+            Vec3A::new(
+                (v.x + 1.0) * w / 2.0,
+                (v.y + 1.0) * h / 2.0,
+                v.z
             )
         }).collect();
         
