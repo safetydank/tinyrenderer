@@ -1,12 +1,13 @@
 use std::{cmp, mem};
 use glam::IVec2;
 
-use crate::geometry::{Vec2i, Vec3f, barycentric, barycentric_glam};
+use crate::geometry::{barycentric};
 
 pub struct Renderer {
     pub width: i32,
     pub height: i32,
-    pub buf: Vec<u32>
+    pub buf: Vec<u32>,
+    pub zbuf: Vec<u32>
 }
 
 impl Renderer {
@@ -15,6 +16,7 @@ impl Renderer {
             width,
             height,
             buf: vec![0x000000ff; (width * height) as usize],
+            zbuf: vec![0x000000ff; (width * height) as usize],
         }
     }
     
@@ -59,36 +61,13 @@ impl Renderer {
         }
     }
     
-    pub fn triangle(&mut self, t0: Vec2i, t1: Vec2i, t2: Vec2i, color: u32) {
+    pub fn triangle(&mut self, t0: IVec2, t1: IVec2, t2: IVec2, color: u32) {
         self.line(t0.x, t0.y, t1.x, t1.y, color);
         self.line(t1.x, t1.y, t2.x, t2.y, color);
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn triangle_fill(&mut self, tri: Vec<Vec2i>, color: u32) {
-        let mut bboxmin = Vec2i::new(self.width-1,  self.height-1); 
-        let mut bboxmax = Vec2i::new(0, 0); 
-        let clamp = Vec2i::new(self.width-1, self.height-1); 
-        for pt in tri.iter() {
-            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x)); 
-            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y)); 
-            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x)); 
-            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y)); 
-        } 
-        for x in bboxmin.x..bboxmax.x {
-            for y in bboxmin.y..bboxmax.y {
-                let p = Vec2i::new(x, y);
-                let bc_screen = barycentric(&tri, p);
-                if bc_screen.x < 0.0 || bc_screen.y < 0.0 || bc_screen.z < 0.0  {
-                    continue;
-                }
-                self.pixel(x, y, color);
-            }
-
-        }
-    }
-    
-    pub fn triangle_fill_glam(&mut self, tri: Vec<IVec2>, color: u32) {
+    pub fn triangle_fill(&mut self, tri: Vec<IVec2>, color: u32) {
         let mut bboxmin = IVec2::new(self.width-1,  self.height-1); 
         let mut bboxmax = IVec2::new(0, 0); 
         let clamp = IVec2::new(self.width-1, self.height-1); 
@@ -98,10 +77,11 @@ impl Renderer {
             bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x)); 
             bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y)); 
         } 
+        
         for x in bboxmin.x..bboxmax.x {
             for y in bboxmin.y..bboxmax.y {
                 let p = IVec2::new(x, y);
-                let bc_screen = barycentric_glam(&tri, p);
+                let bc_screen = barycentric(&tri, p);
                 if bc_screen.x < 0.0 || bc_screen.y < 0.0 || bc_screen.z < 0.0  {
                     continue;
                 }

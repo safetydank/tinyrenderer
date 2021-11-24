@@ -8,12 +8,10 @@ use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use rand;
 
 use tinyrenderer::renderer::Renderer;
 use tinyrenderer::objloader::{load_obj, Mesh};
-use tinyrenderer::geometry::{Vec3f};
-use tinyrenderer::util::{draw_mesh_glam, draw_mesh, save_png};
+use tinyrenderer::util::{draw_mesh, save_png};
 
 use glam::Vec3A;
 
@@ -21,13 +19,8 @@ const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
 
 fn draw(r: &mut Renderer) {
-    let mesh: Mesh<Vec3f> = load_obj("obj/african_head.obj");
-    draw_mesh(r, &mesh, true);
-}
-
-fn draw_glam(r: &mut Renderer) {
     let mesh: Mesh<Vec3A> = load_obj("obj/african_head.obj");
-    draw_mesh_glam(r, &mesh, true);
+    draw_mesh(r, &mesh);
 }
 
 fn main() -> Result<(), Error> {
@@ -52,7 +45,7 @@ fn main() -> Result<(), Error> {
 
     let mut renderer = Renderer::new(WIDTH, HEIGHT);
     // draw(&mut renderer);
-    draw_glam(&mut renderer);
+    draw(&mut renderer);
 
     save_png("wires.png", renderer.width as u32, renderer.height as u32, renderer.buf.as_slice());
 

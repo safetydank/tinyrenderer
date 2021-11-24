@@ -1,5 +1,4 @@
 use std::fs;
-use crate::geometry::Vec3f;
 use glam::Vec3A;
 
 pub struct Mesh<T> {
@@ -11,12 +10,6 @@ pub struct Mesh<T> {
 
 pub trait Vector3 {
     fn create(x: f32, y: f32, z: f32) -> Self;
-}
-
-impl Vector3 for Vec3f {
-    fn create(x: f32, y: f32, z: f32) -> Self {
-        Vec3f::new(x, y, z)
-    }
 }
 
 impl Vector3 for Vec3A {
