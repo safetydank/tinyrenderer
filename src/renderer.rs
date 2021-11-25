@@ -91,7 +91,7 @@ impl Renderer {
             for y in bboxmin.y..bboxmax.y {
                 let p = Vec3A::new(x as f32, y as f32, 0.0);
                 let bc = barycentric(tri[0], tri[1], tri[2], p);
-                if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0  {
+                if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
                     continue;
                 }
                 let z = tri.iter()
