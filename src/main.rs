@@ -10,16 +10,14 @@ use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
 use tinyrenderer::renderer::{Renderer, Texture};
-use tinyrenderer::objloader::{load_obj, Mesh};
+use tinyrenderer::objloader::{load_obj};
 use tinyrenderer::util::{draw_mesh, load_png_texture, save_png};
-
-use glam::Vec3A;
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
 
 fn draw(r: &mut Renderer, tex: &Texture) {
-    let mesh: Mesh<Vec3A> = load_obj("obj/african_head.obj");
+    let mesh = load_obj("obj/african_head.obj");
     draw_mesh(r, &mesh, tex);
 }
 

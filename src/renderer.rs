@@ -1,7 +1,7 @@
 use std::{cmp, mem};
-use glam::{IVec2, Vec2, Vec3A, Vec4};
+use crate::geometry::{Vector3, Vector2, Vector2i, barycentric};
 
-use crate::{geometry::barycentric, util::{color_from_vec4, vec4_from_color}};
+use crate::util::{color_from_vec4, vec4_from_color};
 
 pub struct Texture {
     pub width: f32,
@@ -80,16 +80,16 @@ impl Renderer {
         }
     }
     
-    pub fn triangle(&mut self, t0: IVec2, t1: IVec2, t2: IVec2, color: u32) {
+    pub fn triangle(&mut self, t0: Vector2i, t1: Vector2i, t2: Vector2i, color: u32) {
         self.line(t0.x, t0.y, t1.x, t1.y, color);
         self.line(t1.x, t1.y, t2.x, t2.y, color);
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn triangle_fill(&mut self, tri: Vec<Vec3A>, uv: Vec<Vec2>, tex: &Texture, intensity: f32) {
-        let mut bboxmin = IVec2::new(self.width-1,  self.height-1); 
-        let mut bboxmax = IVec2::new(0, 0); 
-        let clamp = IVec2::new(self.width-1, self.height-1); 
+    pub fn triangle_fill(&mut self, tri: Vec<Vector3>, uv: Vec<Vector2>, tex: &Texture, intensity: f32) {
+        let mut bboxmin = Vector2i::new(self.width-1,  self.height-1); 
+        let mut bboxmax = Vector2i::new(0, 0); 
+        let clamp = Vector2i::new(self.width-1, self.height-1); 
         for pt in tri.iter() {
             bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x.floor() as i32)); 
             bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y.floor() as i32)); 
@@ -99,7 +99,7 @@ impl Renderer {
         
         for x in bboxmin.x..bboxmax.x {
             for y in bboxmin.y..bboxmax.y {
-                let p = Vec3A::new(x as f32, y as f32, 0.0);
+                let p = Vector3::new(x as f32, y as f32, 0.0);
                 let bc = barycentric(tri[0], tri[1], tri[2], p);
                 if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
                     continue;

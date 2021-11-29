@@ -1,29 +1,20 @@
 use std::fs;
-use glam::{Vec2, Vec3A};
 use regex::Regex;
 
-pub struct Mesh<T> {
+use crate::geometry::{Vector2, Vector3};
+
+pub struct Mesh {
     //  vertices
-    pub vs: Vec<T>,
+    pub vs: Vec<Vector3>,
     //  vertex indices (triangles)
     pub vis: Vec<i32>,
     //  texture coords
-    pub tex: Vec<Vec2>,
+    pub tex: Vec<Vector2>,
     //  texture indices
     pub tis: Vec<i32>
 }
 
-pub trait Vector3 {
-    fn create(x: f32, y: f32, z: f32) -> Self;
-}
-
-impl Vector3 for Vec3A {
-    fn create(x: f32, y: f32, z: f32) -> Self {
-        Vec3A::new(x, y, z)
-    }
-}
-
-pub fn load_obj<T: Vector3>(path: &str) -> Mesh<T> {
+pub fn load_obj(path: &str) -> Mesh {
     let mut mesh = Mesh::new();
 
     // hacking an obj reader with no error handling
@@ -42,9 +33,9 @@ pub fn load_obj<T: Vector3>(path: &str) -> Mesh<T> {
                 let z = tokens.next().unwrap().parse::<f32>().unwrap();
                 
                 match t {
-                    "v" => mesh.vs.push(T::create(x, y, z)),
+                    "v" => mesh.vs.push(Vector3::new(x, y, z)),
                     "vt" => {
-                        mesh.tex.push(Vec2::new(x, y));
+                        mesh.tex.push(Vector2::new(x, y));
                     },
                     _ => { },
                 }
@@ -65,12 +56,12 @@ pub fn load_obj<T: Vector3>(path: &str) -> Mesh<T> {
     mesh
 }
 
-impl<T: Vector3> Mesh<T> {
+impl Mesh {
     pub fn new() -> Self {
         Self {
-            vs: vec![T::create(0.0, 0.0, 0.0)],
+            vs: vec![Vector3::new(0.0, 0.0, 0.0)],
             vis: vec![],
-            tex: vec![Vec2::new(0.0, 0.0)],
+            tex: vec![Vector2::new(0.0, 0.0)],
             tis: vec![],
         }
     }
