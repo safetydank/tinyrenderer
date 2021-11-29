@@ -9,18 +9,18 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
-use tinyrenderer::renderer::Renderer;
+use tinyrenderer::renderer::{Renderer, Texture};
 use tinyrenderer::objloader::{load_obj, Mesh};
-use tinyrenderer::util::{draw_mesh, save_png};
+use tinyrenderer::util::{draw_mesh, load_png_texture, save_png};
 
 use glam::Vec3A;
 
 const WIDTH: i32 = 800;
 const HEIGHT: i32 = 800;
 
-fn draw(r: &mut Renderer) {
+fn draw(r: &mut Renderer, tex: &Texture) {
     let mesh: Mesh<Vec3A> = load_obj("obj/african_head.obj");
-    draw_mesh(r, &mesh);
+    draw_mesh(r, &mesh, tex);
 }
 
 fn main() -> Result<(), Error> {
@@ -44,8 +44,9 @@ fn main() -> Result<(), Error> {
     };
 
     let mut renderer = Renderer::new(WIDTH, HEIGHT);
-    // draw(&mut renderer);
-    draw(&mut renderer);
+    let texture = load_png_texture("obj/african_head_diffuse.png");
+    texture.log_debug();
+    draw(&mut renderer, &texture);
 
     save_png("wires.png", renderer.width as u32, renderer.height as u32, renderer.buf.as_slice());
 

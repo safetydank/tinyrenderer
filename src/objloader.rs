@@ -7,8 +7,10 @@ pub struct Mesh<T> {
     pub vs: Vec<T>,
     //  vertex indices (triangles)
     pub vis: Vec<i32>,
-    //  texture indices
+    //  texture coords
     pub tex: Vec<Vec2>,
+    //  texture indices
+    pub tis: Vec<i32>
 }
 
 pub trait Vector3 {
@@ -41,14 +43,19 @@ pub fn load_obj<T: Vector3>(path: &str) -> Mesh<T> {
                 
                 match t {
                     "v" => mesh.vs.push(T::create(x, y, z)),
-                    "vt" => mesh.tex.push(Vec2::new(x, y)),
+                    "vt" => {
+                        mesh.tex.push(Vec2::new(x, y));
+                    },
                     _ => { },
                 }
             },
             Some("f") => {
                 for _ in 0..3 {
-                    let index = tokens.next().unwrap().split("/").next().unwrap().parse::<i32>().unwrap();
-                    mesh.vis.push(index);
+                    let mut triple_iter = tokens.next().unwrap().split("/");
+                    let vi = triple_iter.next().unwrap().parse::<i32>().unwrap();
+                    mesh.vis.push(vi);
+                    let ti = triple_iter.next().unwrap().parse::<i32>().unwrap();
+                    mesh.tis.push(ti);
                 }
             },
             Some(_) | None => { },
@@ -64,6 +71,7 @@ impl<T: Vector3> Mesh<T> {
             vs: vec![T::create(0.0, 0.0, 0.0)],
             vis: vec![],
             tex: vec![Vec2::new(0.0, 0.0)],
+            tis: vec![],
         }
     }
 }

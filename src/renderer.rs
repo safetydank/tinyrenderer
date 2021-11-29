@@ -1,5 +1,5 @@
 use std::{cmp, mem};
-use glam::{IVec2, Vec3A};
+use glam::{IVec2, Vec2, Vec3A};
 
 pub fn barycentric(a: Vec3A, b: Vec3A, c: Vec3A, p: Vec3A) -> Vec3A { 
     let s0 = Vec3A::new(c.y-a.y, b.y-a.y, a.y-p.y);
@@ -11,6 +11,25 @@ pub fn barycentric(a: Vec3A, b: Vec3A, c: Vec3A, p: Vec3A) -> Vec3A {
         Vec3A::new(-1.0, 1.0, 1.0)
     }
 } 
+
+pub struct Texture {
+    pub width: f32,
+    pub height: f32,
+    pub buf: Vec<u32>
+}
+
+impl Texture {
+    pub fn sample(&self, u: f32, v: f32) -> u32 {
+        // nearest neighbour ???
+        let x = u * self.width;
+        let y = self.height - (v * self.height);
+        let index = (y.floor()*self.width + x.floor()) as usize;
+        self.buf[index]
+    }    
+    pub fn log_debug(&self) {
+        println!("Texture width {} height {} buf<u32> len {}", self.width, self.height, self.buf.len());
+    }
+}
 
 pub struct Renderer {
     pub width: i32,
@@ -76,7 +95,8 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn triangle_fill(&mut self, tri: Vec<Vec3A>, color: u32) {
+    pub fn triangle_fill(&mut self, tri: Vec<Vec3A>, uv: Vec<Vec2>, tex: &Texture) {
+        println!("fill {} {} {} texi {} {} {}", tri[0], tri[1], tri[2], uv[0], uv[1], uv[2]);
         let mut bboxmin = IVec2::new(self.width-1,  self.height-1); 
         let mut bboxmax = IVec2::new(0, 0); 
         let clamp = IVec2::new(self.width-1, self.height-1); 
@@ -98,10 +118,17 @@ impl Renderer {
                     .zip([bc.x, bc.y, bc.z])
                     .map(|(v, bc)| v.z * bc)
                     .sum();
+                // weighted tex coords
+                let texcoords = uv.iter()
+                    .zip([bc.x, bc.y, bc.z])
+                    .map(|(texcoord, bc)| *texcoord * bc)
+                    .reduce(|l, r| l + r)
+                    .unwrap();
                 let zindex = (self.width * y + x) as usize;
                 if self.zbuf[zindex] < z {
                     self.zbuf[zindex] = z;
-                    self.pixel(x, y, color);
+                    println!("Pixel bc {} texcoords {}", bc, texcoords);
+                    self.pixel(x, y, tex.sample(texcoords.x, texcoords.y));
                 }
             }
         }

@@ -2,10 +2,27 @@ use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
 
-use glam::Vec3A;
+use glam::{Vec2, Vec3A};
 
 use crate::objloader::Mesh;
-use crate::renderer::Renderer;
+use crate::renderer::{Renderer, Texture};
+
+pub fn load_png_texture(path_str: &str) -> Texture {
+    let decoder = png::Decoder::new(File::open(path_str).unwrap());
+    let mut reader = decoder.read_info().unwrap();
+    let mut bytebuf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut bytebuf).unwrap();
+    
+    Texture {
+        width: info.width as f32,
+        height: info.height as f32,
+        buf: bytebuf.chunks_exact(3).map(|b| {
+            // let bytes = [b[2], b[1], b[0], 0xff];
+            let bytes = [b[0], b[1], b[2], 0xff];
+            u32::from_be_bytes(bytes)
+        }).collect()
+    }
+}
 
 pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {
     let path = Path::new(&path_str);
@@ -22,15 +39,14 @@ pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {
     writer.write_image_data(&bbuf).unwrap(); // Save
 }
 
-pub fn draw_mesh(r: &mut Renderer, mesh: &Mesh<Vec3A>) {
+pub fn draw_mesh(r: &mut Renderer, mesh: &Mesh<Vec3A>, tex: &Texture) {
     // let mut rng = rand::thread_rng();
 
     let light_dir = Vec3A::new(0.0, 0.0, -1.0);
 
-    for tri in mesh.vis.chunks_exact(3) {
+    for (tri, texi) in mesh.vis.chunks_exact(3).zip(mesh.tis.chunks_exact(3)) {
         let w = (r.width - 1) as f32;
         let h = (r.height - 1) as f32;
-        // println!("Triangle {} {} {}", tri[0], tri[1], tri[2]);
         
         // world space vertices
         let vs: Vec<Vec3A> = tri.iter().map(|i| {
@@ -45,14 +61,17 @@ pub fn draw_mesh(r: &mut Renderer, mesh: &Mesh<Vec3A>) {
                 v.z
             )
         }).collect();
+        let uv: Vec<Vec2> = texi.iter().map(|i| {
+            mesh.tex[*i as usize]
+        }).collect();
         
         // normal
         let n = Vec3A::cross(vs[2] - vs[0], vs[1] - vs[0]).normalize();
         let intensity = (Vec3A::dot(n, light_dir) * 255.0) as u32;
 
         if intensity > 0 {
-            let color = (intensity<<24) | (intensity<<16) | (intensity<<8) | 0xff;
-            r.triangle_fill(pts, color);
+            // let color = (intensity<<24) | (intensity<<16) | (intensity<<8) | 0xff;
+            r.triangle_fill(pts, uv, tex);
         }
     }
 
