@@ -1,16 +1,7 @@
 use std::{cmp, mem};
-use glam::{IVec2, Vec2, Vec3A};
+use glam::{IVec2, Vec2, Vec3A, Vec4};
 
-pub fn barycentric(a: Vec3A, b: Vec3A, c: Vec3A, p: Vec3A) -> Vec3A { 
-    let s0 = Vec3A::new(c.y-a.y, b.y-a.y, a.y-p.y);
-    let s1 = Vec3A::new(c.x-a.x, b.x-a.x, a.x-p.x);
-    let u = Vec3A::cross(s0, s1);
-    if u.z.abs() > 1.0e-2 {
-        Vec3A::new(1.0-(u.x+u.y)/u.z, u.y/u.z, u.x/u.z)
-    } else {
-        Vec3A::new(-1.0, 1.0, 1.0)
-    }
-} 
+use crate::{geometry::barycentric, util::{color_from_vec4, vec4_from_color}};
 
 pub struct Texture {
     pub width: f32,
@@ -95,8 +86,7 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn triangle_fill(&mut self, tri: Vec<Vec3A>, uv: Vec<Vec2>, tex: &Texture) {
-        println!("fill {} {} {} texi {} {} {}", tri[0], tri[1], tri[2], uv[0], uv[1], uv[2]);
+    pub fn triangle_fill(&mut self, tri: Vec<Vec3A>, uv: Vec<Vec2>, tex: &Texture, intensity: f32) {
         let mut bboxmin = IVec2::new(self.width-1,  self.height-1); 
         let mut bboxmax = IVec2::new(0, 0); 
         let clamp = IVec2::new(self.width-1, self.height-1); 
@@ -114,21 +104,23 @@ impl Renderer {
                 if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
                     continue;
                 }
+                let bc_weights = [bc.x, bc.y, bc.z];
+                // weighted z coord
                 let z = tri.iter()
-                    .zip([bc.x, bc.y, bc.z])
+                    .zip(bc_weights)
                     .map(|(v, bc)| v.z * bc)
                     .sum();
                 // weighted tex coords
                 let texcoords = uv.iter()
-                    .zip([bc.x, bc.y, bc.z])
+                    .zip(bc_weights)
                     .map(|(texcoord, bc)| *texcoord * bc)
                     .reduce(|l, r| l + r)
                     .unwrap();
                 let zindex = (self.width * y + x) as usize;
                 if self.zbuf[zindex] < z {
                     self.zbuf[zindex] = z;
-                    println!("Pixel bc {} texcoords {}", bc, texcoords);
-                    self.pixel(x, y, tex.sample(texcoords.x, texcoords.y));
+                    let c = vec4_from_color(tex.sample(texcoords.x, texcoords.y)) * intensity;
+                    self.pixel(x, y, color_from_vec4(c));
                 }
             }
         }
