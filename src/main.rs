@@ -11,14 +11,14 @@ use winit_input_helper::WinitInputHelper;
 
 use tinyrenderer::renderer::{Renderer, Texture};
 use tinyrenderer::objloader::{load_obj};
-use tinyrenderer::util::{draw_mesh, load_png_texture, save_png};
+use tinyrenderer::util::{load_png_texture, save_png};
 
-const WIDTH: i32 = 800;
-const HEIGHT: i32 = 800;
+const WIDTH: i32 = 1000;
+const HEIGHT: i32 = 1000;
 
 fn draw(r: &mut Renderer, tex: &Texture) {
     let mesh = load_obj("obj/african_head.obj");
-    draw_mesh(r, &mesh, tex);
+    r.draw_mesh(&mesh, tex);
 }
 
 fn main() -> Result<(), Error> {

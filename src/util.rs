@@ -1,11 +1,10 @@
 use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
+use std::ops::{Add, Mul};
 
-use crate::geometry::{Vector2, Vector3, Vector4};
-
-use crate::objloader::Mesh;
-use crate::renderer::{Renderer, Texture};
+use crate::geometry::Vector4;
+use crate::renderer::Texture;
 
 pub fn load_png_texture(path_str: &str) -> Texture {
     let decoder = png::Decoder::new(File::open(path_str).unwrap());
@@ -36,6 +35,23 @@ pub fn color_from_vec4(v: Vector4) -> u32 {
     (r << 24) | (g << 16) | (b << 8) | a
 }
 
+//  Can't implement Into/From traits on primitive types ourselves
+pub trait Cast<T>: {
+    fn cast(&self) -> T;
+}
+
+impl Cast<usize> for i32 {
+    fn cast(&self) -> usize { *self as usize }
+}
+
+impl Cast<usize> for f32 {
+    fn cast(&self) -> usize { *self as usize }
+}
+
+pub fn buf_index<T: Mul<Output = T> + Add<Output = T> + Cast<usize>>(x: T, y: T, stride: T) -> usize {
+    return (y * stride + x).cast();
+}
+
 pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {
     let path = Path::new(&path_str);
     let file = File::create(path).unwrap();
@@ -49,42 +65,4 @@ pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {
     // convert u32 buffer to u8
     let bbuf:Vec<u8> = buf.iter().flat_map(|v| v.to_be_bytes()).collect();
     writer.write_image_data(&bbuf).unwrap(); // Save
-}
-
-pub fn draw_mesh(r: &mut Renderer, mesh: &Mesh, tex: &Texture) {
-    // let mut rng = rand::thread_rng();
-
-    let light_dir = Vector3::new(0.0, 0.0, -1.0);
-
-    for (tri, texi) in mesh.vis.chunks_exact(3).zip(mesh.tis.chunks_exact(3)) {
-        let w = (r.width - 1) as f32;
-        let h = (r.height - 1) as f32;
-        
-        // world space vertices
-        let vs: Vec<Vector3> = tri.iter().map(|i| {
-            mesh.vs[*i as usize]
-        }).collect();
-
-        // project vertices into screen space points
-        let pts: Vec<Vector3> = vs.iter().map(|v| {
-            Vector3::new(
-                (v.x + 1.0) * w / 2.0,
-                (v.y + 1.0) * h / 2.0,
-                v.z
-            )
-        }).collect();
-        let uv: Vec<Vector2> = texi.iter().map(|i| {
-            mesh.tex[*i as usize]
-        }).collect();
-        
-        // normal
-        let n = Vector3::cross(vs[2] - vs[0], vs[1] - vs[0]).normalize();
-        // let intensity = (Vector3::dot(n, light_dir) * 255.0) as u32;
-        let intensity = Vector3::dot(n, light_dir);
-
-        if intensity > 0.0 {
-            r.triangle_fill(pts, uv, tex, intensity);
-        }
-    }
-
 }

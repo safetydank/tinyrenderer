@@ -1,18 +1,7 @@
 use std::fs;
 use regex::Regex;
 
-use crate::geometry::{Vector2, Vector3};
-
-pub struct Mesh {
-    //  vertices
-    pub vs: Vec<Vector3>,
-    //  vertex indices (triangles)
-    pub vis: Vec<i32>,
-    //  texture coords
-    pub tex: Vec<Vector2>,
-    //  texture indices
-    pub tis: Vec<i32>
-}
+use crate::{geometry::{Vector2, Vector3}, renderer::Mesh};
 
 pub fn load_obj(path: &str) -> Mesh {
     let mut mesh = Mesh::new();
