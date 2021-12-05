@@ -82,6 +82,12 @@ pub fn viewport(x: f32, y: f32, w: f32, h: f32) -> Matrix4 {
     m
 }
 
+pub fn projection(z: f32) -> Matrix4 {
+    let mut m = Matrix4::IDENTITY;
+    m.col_mut(2)[3] = -1.0 / z;
+    m
+}
+
 impl Renderer {
     pub fn new(width: i32, height: i32) -> Self {
         Self {
@@ -199,17 +205,13 @@ impl Renderer {
 
             // project vertices into screen space points
             let vp = viewport(0.0, 0.0, self.width as f32, self.height as f32);
+            let proj = projection(3.0);
+
             let pts: Vec<Vector3> = vs.iter().map(|v| {
-                (vp * Vector4::new(v.x, v.y, v.z, 1.0)).xyz()
+                let v = vp * proj * Vector4::new(v.x, v.y, v.z, 1.0);
+                Vector3::new(v.x / v.w, v.y / v.w, v.z / v.w)
             }).collect();
 
-            // let pts: Vec<Vector3> = vs.iter().map(|v| {
-            //     Vector3::new(
-            //         (v.x + 1.0) * w / 2.0,
-            //         (v.y + 1.0) * h / 2.0,
-            //         v.z
-            //     )
-            // }).collect();
             let uvs: Vec<Vector2> = texi.iter().map(|i| {
                 mesh.tex[*i as usize]
             }).collect();
