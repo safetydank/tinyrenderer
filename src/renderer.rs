@@ -1,5 +1,7 @@
 use std::{cmp, mem};
-use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, barycentric};
+use glam::Vec4Swizzles;
+
+use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, barycentric, Matrix4};
 
 use crate::util::{buf_index, color_from_vec4, vec4_from_color};
 
@@ -63,6 +65,21 @@ pub struct Renderer {
     pub height: i32,
     pub buf: Vec<u32>,
     pub zbuf: Vec<f32>
+}
+
+const DEPTH: f32 = 255.0;
+
+pub fn viewport(x: f32, y: f32, w: f32, h: f32) -> Matrix4 {
+    let mut m = Matrix4::IDENTITY;
+    m.col_mut(3)[0] = x + w / 2.0;
+    m.col_mut(3)[1] = y + h / 2.0;
+    m.col_mut(3)[2] = DEPTH / 2.0;
+
+    m.col_mut(0)[0] = w / 2.0;
+    m.col_mut(1)[1] = h / 2.0;
+    m.col_mut(2)[2] = DEPTH / 2.0;
+    
+    m
 }
 
 impl Renderer {
@@ -181,13 +198,18 @@ impl Renderer {
             }).collect();
 
             // project vertices into screen space points
+            let vp = viewport(0.0, 0.0, self.width as f32, self.height as f32);
             let pts: Vec<Vector3> = vs.iter().map(|v| {
-                Vector3::new(
-                    (v.x + 1.0) * w / 2.0,
-                    (v.y + 1.0) * h / 2.0,
-                    v.z
-                )
+                (vp * Vector4::new(v.x, v.y, v.z, 1.0)).xyz()
             }).collect();
+
+            // let pts: Vec<Vector3> = vs.iter().map(|v| {
+            //     Vector3::new(
+            //         (v.x + 1.0) * w / 2.0,
+            //         (v.y + 1.0) * h / 2.0,
+            //         v.z
+            //     )
+            // }).collect();
             let uvs: Vec<Vector2> = texi.iter().map(|i| {
                 mesh.tex[*i as usize]
             }).collect();
