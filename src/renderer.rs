@@ -1,3 +1,4 @@
+use std::f32::consts::FRAC_PI_4;
 use std::{cmp, mem};
 use glam::Vec4Swizzles;
 
@@ -71,15 +72,20 @@ const DEPTH: f32 = 255.0;
 
 pub fn viewport(x: f32, y: f32, w: f32, h: f32) -> Matrix4 {
     let mut m = Matrix4::IDENTITY;
-    m.col_mut(3)[0] = x + w / 2.0;
-    m.col_mut(3)[1] = y + h / 2.0;
-    m.col_mut(3)[2] = DEPTH / 2.0;
+    let col = m.col_mut(3);
+    col[0] = x + w / 2.0;
+    col[1] = y + h / 2.0;
+    col[2] = DEPTH / 2.0;
 
     m.col_mut(0)[0] = w / 2.0;
     m.col_mut(1)[1] = h / 2.0;
     m.col_mut(2)[2] = DEPTH / 2.0;
     
     m
+}
+
+pub fn look_at(eye: Vector3, center: Vector3, up: Vector3) -> Matrix4 {
+    Matrix4::look_at_rh(eye, center, up)
 }
 
 pub fn projection(z: f32) -> Matrix4 {
@@ -193,22 +199,22 @@ impl Renderer {
 
     pub fn draw_mesh(&mut self, mesh: &Mesh, tex: &Texture) {
         let light_dir = Vector3::new(0.0, 0.0, -1.0);
+        
+        let eye = Vector3::new(1.0, 1.0, 3.0);
+        let center = Vector3::new(0.0, 0.0, 0.0);
+        let vp = viewport(0.0, 0.0, self.width as f32, self.height as f32);
+        let proj = projection((eye - center).length());
+        let modelview = look_at(eye, center, Vector3::new(0.0, 1.0, 0.0));
 
         for (tri, texi) in mesh.vis.chunks_exact(3).zip(mesh.tis.chunks_exact(3)) {
-            let w = (self.width - 1) as f32;
-            let h = (self.height - 1) as f32;
-            
             // world space vertices
             let vs: Vec<Vector3> = tri.iter().map(|i| {
                 mesh.vs[*i as usize]
             }).collect();
 
             // project vertices into screen space points
-            let vp = viewport(0.0, 0.0, self.width as f32, self.height as f32);
-            let proj = projection(3.0);
-
             let pts: Vec<Vector3> = vs.iter().map(|v| {
-                let v = vp * proj * Vector4::new(v.x, v.y, v.z, 1.0);
+                let v = vp * proj * modelview * Vector4::new(v.x, v.y, v.z, 1.0);
                 Vector3::new(v.x / v.w, v.y / v.w, v.z / v.w)
             }).collect();
 
