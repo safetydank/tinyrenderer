@@ -18,7 +18,8 @@ const HEIGHT: i32 = 1000;
 
 fn draw(r: &mut Renderer, tex: &Texture) {
     let mesh = load_obj("obj/african_head.obj");
-    r.draw_mesh(&mesh, tex);
+    // r.draw_mesh(&mesh, tex);
+    r.draw_mesh_shader(&mesh, tex);
 }
 
 fn main() -> Result<(), Error> {
