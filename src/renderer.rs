@@ -1,10 +1,43 @@
-use std::f32::consts::FRAC_PI_4;
 use std::{cmp, mem};
-use glam::Vec4Swizzles;
+use glam::{Vec4Swizzles};
 
 use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, barycentric, Matrix4};
 
 use crate::util::{buf_index, color_from_vec4, vec4_from_color};
+
+pub trait Shader {
+    fn vertex(&mut self, v: Vector4, n: Vector4, tri_index: usize) -> Vector4;
+    fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool;
+}
+
+pub struct GouraudShader {
+    pub viewport: Matrix4,
+    pub projection: Matrix4,
+    pub modelview: Matrix4,
+    pub light_dir: Vector3,
+    pub varying_intensity: Vector3,
+}
+
+impl Shader for GouraudShader {
+    fn vertex(&mut self, v: Vector4, n: Vector4, tri_index: usize) -> Vector4 {
+        let gl_vertex = self.viewport * self.projection * self.modelview * v;
+        let intensity = f32::max(0.0, Vector3::dot(n.xyz(), self.light_dir));
+        match tri_index {
+           0 => self.varying_intensity.x = intensity,
+           1 => self.varying_intensity.y = intensity,
+           2 => self.varying_intensity.z = intensity,
+           _ => {},
+        }
+        gl_vertex
+    }
+
+    fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
+        let intensity = Vector3::dot(self.varying_intensity, bar);
+        *frag = color_from_vec4(Vector4::new(1.0, 1.0, 1.0, 1.0) * intensity);
+
+        false
+    }
+}
 
 pub struct Texture {
     pub width: f32,
@@ -50,6 +83,35 @@ impl Texture {
     }
 }
 
+pub struct Index {
+    //  Indexes
+    pub vertex: i32,
+    pub tex: i32,
+    pub normal: i32
+}
+
+impl Index {
+    pub fn new(vertex: i32, tex: i32, normal: i32) -> Self {
+        Self {
+            vertex,
+            tex,
+            normal
+        }
+    }
+}
+
+pub struct Face {
+    pub points: [Index; 3]
+}
+
+impl Face {
+    pub fn new(p0: Index, p1: Index, p2: Index) -> Self {
+        Self {
+            points: [p0, p1, p2]
+        }
+    }
+}
+
 pub struct Mesh {
     //  vertices
     pub vs: Vec<Vector3>,
@@ -58,7 +120,12 @@ pub struct Mesh {
     //  texture coords
     pub tex: Vec<Vector2>,
     //  texture indices
-    pub tis: Vec<i32>
+    pub tis: Vec<i32>,
+    //  normals
+    pub ns: Vec<Vector3>,
+    //  normal indices
+    pub nis: Vec<i32>,
+    pub indexes: Vec<Index>,
 }
 
 pub struct Renderer {
@@ -149,6 +216,100 @@ impl Renderer {
         self.line(t0.x, t0.y, t1.x, t1.y, color);
         self.line(t1.x, t1.y, t2.x, t2.y, color);
         self.line(t2.x, t2.y, t0.x, t0.y, color);
+    }
+
+    pub fn triangle_shade(&mut self, shader: &impl Shader, pts: Vec<Vector4>) {
+        let mut bboxmin = Vector2i::new(self.width-1,  self.height-1); 
+        let mut bboxmax = Vector2i::new(0, 0); 
+        let clamp = Vector2i::new(self.width-1, self.height-1); 
+        for pt in pts.iter() {
+            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x.floor() as i32)); 
+            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y.floor() as i32)); 
+            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x.ceil() as i32)); 
+            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y.ceil() as i32)); 
+        } 
+        
+        for x in bboxmin.x..bboxmax.x {
+            for y in bboxmin.y..bboxmax.y {
+                let p = Vector3::new(x as f32, y as f32, 0.0);
+                let bc = barycentric(pts[0].xyz() / pts[0].w, pts[1].xyz() / pts[1].w, pts[2].xyz() / pts[2].w, p);
+                if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
+                    continue;
+                }
+                let bc_weights = [bc.x, bc.y, bc.z];
+                // weighted z coord
+                let z: f32 = pts.iter()
+                    .zip(bc_weights)
+                    .map(|(v, weight)| v.z * weight)
+                    .sum();
+                // weighted w coord
+                let w: f32 = pts.iter()
+                    .zip(bc_weights)
+                    .map(|(v, weight)| v.w * weight)
+                    .sum();
+                let frag_depth = f32::max(0.0, f32::min(255.0, z/w));
+                let zindex = buf_index(x, y, self.width);
+                if self.zbuf[zindex] > frag_depth {
+                    continue
+                }
+                
+                let mut color: u32 = 0;
+                let discard = shader.fragment(bc, &mut color);
+                if !discard {
+                    self.zbuf[zindex] = frag_depth;
+                    self.pixel(x, y, color);
+                }
+            }
+        }
+    }
+    
+    pub fn draw_shader(&mut self, mesh: &Mesh, tex: &Texture) {
+        let eye = Vector3::new(0.0, -1.0, 3.0);
+        let center = Vector3::new(0.0, 0.0, 0.0);
+        let up = Vector3::new(0.0, 1.0, 0.0);
+
+        let mut shader = GouraudShader{
+            viewport: viewport(
+                self.width as f32 / 8.0, self.height as f32 / 8.0,
+                self.width as f32 * 3.0/4.0, self.height as f32 * 3.0/4.0
+            ),
+            projection: projection((eye - center).length()),
+            modelview: look_at(eye, center, up),
+            light_dir: Vector3::new(1.0, 1.0, 1.0),
+            varying_intensity: Vector3::ZERO,
+        };
+
+        // for (tri, texi, ni) in mesh.vis.chunks_exact(3).zip(mesh.tis.chunks_exact(3)).zip(mesh.nis.chunks_exact(3)) {
+        for tri_indexes in mesh.indexes.chunks_exact(3) {
+            // object space vertices
+            let vs: Vec<Vector3> = tri_indexes.iter().map(|i| {
+                mesh.ns[i.vertex as usize]
+            }).collect();
+
+            // normals
+            let ns: Vec<Vector3> = tri_indexes.iter().map(|i| {
+                mesh.ns[i.normal as usize]
+            }).collect();
+
+            // project vertices into screen space points
+            let pts: Vec<Vector4> = vs.iter().zip(ns.iter()).enumerate().map(|(tri_index, (v, n))| {
+                shader.vertex(Vector4::new(v.x, v.y, v.z, 1.0), Vector4::new(n.x, n.y, n.z, 1.0), tri_index)
+            }).collect();
+            
+            self.triangle_shade(&shader, pts);
+
+            // let uvs: Vec<Vector2> = texi.iter().map(|i| {
+            //     mesh.tex[*i as usize]
+            // }).collect();
+            // 
+            // // normal
+            // let n = Vector3::cross(vs[2] - vs[0], vs[1] - vs[0]).normalize();
+            // let intensity = Vector3::dot(n, light_dir);
+
+            // if intensity > 0.0 {
+            //     self.triangle_fill(pts, uvs, tex, intensity);
+            // }
+        }
     }
 
     pub fn triangle_fill(&mut self, pts: Vec<Vector3>, uvs: Vec<Vector2>, tex: &Texture, intensity: f32) {

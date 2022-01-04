@@ -1,4 +1,4 @@
-use glam::{IVec2, Vec2, Vec3A, Vec3, Vec4, Mat3, Mat4};
+use glam::{IVec2, Vec2, Vec3, Vec4, Mat3, Mat4};
 
 pub type Vector3 = Vec3;
 pub type Vector2 = Vec2;

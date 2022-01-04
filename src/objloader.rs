@@ -1,7 +1,7 @@
 use std::fs;
 use regex::Regex;
 
-use crate::{geometry::{Vector2, Vector3}, renderer::Mesh};
+use crate::{geometry::{Vector2, Vector3}, renderer::{Mesh, Index}};
 
 pub fn load_obj(path: &str) -> Mesh {
     let mut mesh = Mesh::new();
@@ -16,16 +16,15 @@ pub fn load_obj(path: &str) -> Mesh {
         let mut tokens = re.split(line);
         let field = tokens.next();
         match field {
-            Some(t @ ("v" | "vt")) => {
+            Some(t @ ("v" | "vt" | "vn")) => {
                 let x = tokens.next().unwrap().parse::<f32>().unwrap();
                 let y = tokens.next().unwrap().parse::<f32>().unwrap();
                 let z = tokens.next().unwrap().parse::<f32>().unwrap();
                 
                 match t {
                     "v" => mesh.vs.push(Vector3::new(x, y, z)),
-                    "vt" => {
-                        mesh.tex.push(Vector2::new(x, y));
-                    },
+                    "vt" => mesh.tex.push(Vector2::new(x, y)),
+                    "vn" => mesh.ns.push(Vector3::new(x, y, z)),
                     _ => { },
                 }
             },
@@ -36,7 +35,11 @@ pub fn load_obj(path: &str) -> Mesh {
                     mesh.vis.push(vi);
                     let ti = triple_iter.next().unwrap().parse::<i32>().unwrap();
                     mesh.tis.push(ti);
+                    let ni = triple_iter.next().unwrap().parse::<i32>().unwrap();
+                    mesh.nis.push(ni);
+                    mesh.indexes.push(Index::new(vi, ti, ni));
                 }
+                // mesh.faces.push(Face::new(points[0], points[1], points[2]));
             },
             Some(_) | None => { },
         }
@@ -48,10 +51,13 @@ pub fn load_obj(path: &str) -> Mesh {
 impl Mesh {
     pub fn new() -> Self {
         Self {
-            vs: vec![Vector3::new(0.0, 0.0, 0.0)],
+            vs: vec![Vector3::ZERO],
             vis: vec![],
-            tex: vec![Vector2::new(0.0, 0.0)],
+            tex: vec![Vector2::ZERO],
             tis: vec![],
+            ns: vec![Vector3::ZERO],
+            nis: vec![],
+            indexes: vec![],
         }
     }
 }
