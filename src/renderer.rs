@@ -23,20 +23,13 @@ impl Shader for GouraudShader {
         let gl_vertex = self.viewport * self.projection * self.modelview * v;
         let intensity = f32::max(0.0, Vector3::dot(n.xyz(), self.light_dir));
         self.varying_intensity[tri_index] = intensity;
-        // match tri_index {
-        //    0 => self.varying_intensity.x = intensity,
-        //    1 => self.varying_intensity.y = intensity,
-        //    2 => self.varying_intensity.z = intensity,
-        //    _ => {},
-        // }
-        println!("gl vertex {}", gl_vertex);
+        // println!("gl vertex {}", gl_vertex);
         gl_vertex
     }
 
     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
-        // let intensity = Vector3::dot(self.varying_intensity, bar);
-        let intensity: f32 = self.varying_intensity.iter().zip(bar.to_array()).map(|(intensity, b)| intensity*b).sum();
-        *frag = color_from_vec4(Vector4::new(1.0, 1.0, 1.0, 1.0) * intensity);
+        let intensity: f32 = self.varying_intensity.iter().zip(bar.to_array()).map(|(intensity, bc)| intensity*bc).sum();
+        *frag = color_from_vec4(Vector4::new(255.0, 255.0, 255.0, 255.0) * intensity);
 
         false
     }
@@ -244,11 +237,11 @@ impl Renderer {
         for x in bboxmin.x..bboxmax.x {
             for y in bboxmin.y..bboxmax.y {
                 let p = Vector3::new(x as f32, y as f32, 0.0);
-                let bc = barycentric(pts[0].xyz() / pts[0].w, pts[1].xyz() / pts[1].w, pts[2].xyz() / pts[2].w, p);
+                let bc = barycentric(pts[0].xyz() * (1.0 / pts[0].w), pts[1].xyz() * (1.0 / pts[1].w), pts[2].xyz() * (1.0 / pts[2].w), p);
                 if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
-                    // println!("BC pts {} {} {} P {} == {}", pts[0], pts[1], pts[2], p, bc);
                     continue;
                 }
+                println!("BC pts {} {} {} P {} == {}", pts[0], pts[1], pts[2], p, bc);
                 // println!("DRAW");
                 let bc_weights = [bc.x, bc.y, bc.z];
                 // weighted z coord
@@ -271,8 +264,8 @@ impl Renderer {
                 let discard = shader.fragment(bc, &mut color);
                 if !discard {
                     self.zbuf[zindex] = frag_depth;
-                    // self.pixel(x, y, color);
-                    self.pixel(x, y, 0xff0000ff);
+                    self.pixel(x, y, color);
+                    // self.pixel(x, y, 0xff0000ff);
                 }
             }
         }
@@ -290,7 +283,7 @@ impl Renderer {
             ),
             projection: projection((eye - center).length()),
             modelview: look_at(eye, center, up),
-            light_dir: Vector3::new(1.0, 1.0, 1.0),
+            light_dir: Vector3::new(1.0, 1.0, 1.0).normalize(),
             varying_intensity: [0.0; 3],
         };
 
@@ -305,7 +298,7 @@ impl Renderer {
 
             // normals
             let ns: Vec<Vector4> = tri_indexes.iter().map(|i| {
-                let n = mesh.ns[i.normal as usize];
+                let n = mesh.ns[i.normal as usize].normalize();
                 Vector4::new(n.x, n.y, n.z, 1.0)
             }).collect();
 
@@ -313,6 +306,7 @@ impl Renderer {
             let pts: Vec<Vector4> = vs.iter().zip(ns.iter()).enumerate().map(|(tri_index, (v, n))| {
                 shader.vertex(*v, *n, tri_index)
             }).collect();
+            // println!("Vertex intensities {} {} {}", shader.varying_intensity[0], shader.varying_intensity[1],  shader.varying_intensity[2]);
             
             self.triangle_shade(&shader, pts);
 
