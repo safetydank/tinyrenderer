@@ -10,16 +10,17 @@ pub trait Shader {
     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool;
 }
 
-pub struct GouraudShader {
+pub struct GouraudShader<'a> {
     pub viewport: Matrix4,
     pub projection: Matrix4,
     pub modelview: Matrix4,
     pub light_dir: Vector3,
     pub varying_intensity: [f32; 3],
-    pub varying_uv: [Vector2; 3]
+    pub varying_uv: [Vector2; 3],
+    pub texture: &'a Texture
 }
 
-impl Shader for GouraudShader {
+impl Shader for GouraudShader<'_> {
     fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
         let gl_vertex = self.viewport * self.projection * self.modelview * v;
         let intensity = f32::max(0.0, Vector3::dot(n.xyz(), self.light_dir));
@@ -31,7 +32,12 @@ impl Shader for GouraudShader {
 
     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
         let intensity: f32 = self.varying_intensity.iter().zip(bar.to_array()).map(|(intensity, bc)| intensity*bc).sum();
-        *frag = color_from_vec4(Vector4::new(255.0, 255.0, 255.0, 255.0) * intensity);
+        let uv: Vector2 = self.varying_uv.iter().zip(bar.to_array())
+            .map(|(tex, w)| *tex * w)
+            .reduce(|l, r| l + r)
+            .unwrap();
+        let c = vec4_from_color(self.texture.sample_lerp(uv.x, uv.y)).xyz() * intensity;
+        *frag = color_from_vec4(Vector4::new(c.x, c.y, c.z, 255.0));
 
         false
     }
@@ -254,6 +260,7 @@ impl Renderer {
                     .zip(bc_weights)
                     .map(|(v, weight)| v.w * weight)
                     .sum();
+
                 let frag_depth = f32::max(0.0, f32::min(255.0, z/w));
                 // println!("Frag depth {}", frag_depth);
                 let zindex = buf_index(x, y, self.width);
@@ -267,6 +274,7 @@ impl Renderer {
                     self.zbuf[zindex] = frag_depth;
                     self.pixel(x, y, color);
                 }
+                
             }
         }
     }
@@ -285,11 +293,12 @@ impl Renderer {
             modelview: look_at(eye, center, up),
             light_dir: Vector3::new(1.0, 1.0, 1.0).normalize(),
             varying_intensity: [0.0; 3],
-            varying_uv: [Vector2::ZERO; 3]
+            varying_uv: [Vector2::ZERO; 3],
+            texture: tex
         };
 
         println!("vp {}\nproj {}\nmv {}\n", shader.viewport, shader.projection, shader.modelview);
-        // for (tri, texi, ni) in mesh.vis.chunks_exact(3).zip(mesh.tis.chunks_exact(3)).zip(mesh.nis.chunks_exact(3)) {
+
         let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];
         for tri_indexes in mesh.indexes.chunks_exact(3) {
             // object space vertices
@@ -313,19 +322,8 @@ impl Renderer {
             for (i, v) in vs.iter().enumerate() {
                 pts[i] = shader.vertex(*v, ns[i], uvs[i], i);
             }
-            // let pts: Vec<Vector4> = vs.iter().zip(ns.iter()).enumerate().map(|(tri_index, (v, n))| {
-            //     shader.vertex(*v, *n, uvs, tri_index)
-            // }).collect();
             
             self.triangle_shade(&shader, pts);
-
-            // // normal
-            // let n = Vector3::cross(vs[2] - vs[0], vs[1] - vs[0]).normalize();
-            // let intensity = Vector3::dot(n, light_dir);
-
-            // if intensity > 0.0 {
-            //     self.triangle_fill(pts, uvs, tex, intensity);
-            // }
         }
     }
 
