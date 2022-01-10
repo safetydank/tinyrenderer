@@ -47,7 +47,9 @@ fn main() -> Result<(), Error> {
     texture.log_debug();
     draw(&mut renderer, &texture);
 
-    save_png("wires.png", renderer.width as u32, renderer.height as u32, renderer.buf.as_slice());
+    save_png("shaded.png", renderer.width as u32, renderer.height as u32, renderer.buf.as_slice());
+    save_png("zbuf.png", renderer.width as u32, renderer.height as u32, renderer.zbuf_buf().as_slice());
+
 
     event_loop.run(move |event, _, control_flow| {
         // Draw the current frame

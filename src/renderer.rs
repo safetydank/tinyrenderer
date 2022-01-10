@@ -171,7 +171,7 @@ impl Renderer {
             width,
             height,
             buf: vec![0x000000ff; (width * height) as usize],
-            zbuf: vec![f32::MIN; (width * height) as usize],
+            zbuf: vec![0.0; (width * height) as usize],
         }
     }
     
@@ -228,20 +228,20 @@ impl Renderer {
         let mut bboxmax = Vector2i::new(0, 0); 
         let clamp = Vector2i::new(self.width-1, self.height-1); 
         for pt in pts.iter() {
-            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x.floor() as i32)); 
-            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y.floor() as i32)); 
-            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x.ceil() as i32)); 
-            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y.ceil() as i32)); 
+            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, (pt.x / pt.w).floor() as i32)); 
+            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, (pt.y / pt.w).floor() as i32)); 
+            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, (pt.x / pt.w).ceil() as i32)); 
+            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, (pt.y / pt.w).ceil() as i32)); 
         } 
         
         for x in bboxmin.x..bboxmax.x {
             for y in bboxmin.y..bboxmax.y {
                 let p = Vector3::new(x as f32, y as f32, 0.0);
-                let bc = barycentric(pts[0].xyz() * (1.0 / pts[0].w), pts[1].xyz() * (1.0 / pts[1].w), pts[2].xyz() * (1.0 / pts[2].w), p);
+                let bc = barycentric(pts[0].xyz() / pts[0].w, pts[1].xyz() / pts[1].w, pts[2].xyz() / pts[2].w, p);
                 if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
                     continue;
                 }
-                println!("BC pts {} {} {} P {} == {}", pts[0], pts[1], pts[2], p, bc);
+                // println!("BC pts {} {} {} P {} == {}", pts[0], pts[1], pts[2], p, bc);
                 // println!("DRAW");
                 let bc_weights = [bc.x, bc.y, bc.z];
                 // weighted z coord
@@ -255,6 +255,7 @@ impl Renderer {
                     .map(|(v, weight)| v.w * weight)
                     .sum();
                 let frag_depth = f32::max(0.0, f32::min(255.0, z/w));
+                println!("Frag depth {}", frag_depth);
                 let zindex = buf_index(x, y, self.width);
                 if self.zbuf[zindex] > frag_depth {
                     continue
@@ -370,6 +371,14 @@ impl Renderer {
         }
     }
 
+    pub fn zbuf_buf(&self) -> Vec<u32> {
+        self.zbuf.iter().map(|z| {
+            let mut vc = *z * Vector4::ONE;
+            vc.w = 255.0;
+            color_from_vec4(vc)
+        }).collect()
+    }
+    
     pub fn draw_mesh(&mut self, mesh: &Mesh, tex: &Texture) {
         let light_dir = Vector3::new(0.0, 0.0, -1.0);
         

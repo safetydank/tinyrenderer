@@ -15,7 +15,7 @@ pub fn barycentric(a: Vector3, b: Vector3, c: Vector3, p: Vector3) -> Vector3 {
     let s0 = Vector3::new(c.x-a.x, b.x-a.x, a.x-p.x);
     let s1 = Vector3::new(c.y-a.y, b.y-a.y, a.y-p.y);
     let u = Vector3::cross(s0, s1);
-    if u.z.abs() > 1.0e-2 {
+    if u.z.abs() > 1.0e-1 {
         Vector3::new(1.0-(u.x+u.y)/u.z, u.y/u.z, u.x/u.z)
     } else {
         Vector3::new(-1.0, 1.0, 1.0)
