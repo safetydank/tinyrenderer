@@ -67,7 +67,7 @@ impl Shader for PhongShader<'_> {
 
     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
         let bn = self.varying_n.iter().zip(bar.to_array())
-            .map(|(n, w)| (*n * w))
+            .map(|(n, w)| *n * w)
             .reduce(|l, r| l + r)
             .unwrap()
             .normalize();
@@ -202,7 +202,6 @@ pub fn viewport(x: f32, y: f32, w: f32, h: f32) -> Matrix4 {
 }
 
 pub fn look_at(eye: Vector3, center: Vector3, up: Vector3) -> Matrix4 {
-    // Matrix4::look_at_rh(eye, center, up)
     let z = (eye-center).normalize();
     let x = Vector3::cross(up,z).normalize();
     let y = Vector3::cross(z,x).normalize();
@@ -278,7 +277,7 @@ impl Renderer {
     }
 
     pub fn draw_mesh_shader(&mut self, mesh: &Mesh, tex: &Texture) {
-        let eye = Vector3::new(0.0, 1.0, 3.0);
+        let eye = Vector3::new(1.0, 1.0, 3.0);
         let center = Vector3::new(0.0, 0.0, 0.0);
         let up = Vector3::new(0.0, 1.0, 0.0);
         self.viewport = viewport(
@@ -289,7 +288,7 @@ impl Renderer {
         let mut shader = PhongShader{
             projection: projection((eye - center).length()),
             modelview: look_at(eye, center, up),
-            light_dir: Vector3::new(-1.0, 1.0, 1.0).normalize(),
+            light_dir: Vector3::new(1.0, 1.0, 1.0).normalize(),
             varying_v: [Vector4::ZERO; 3],
             varying_n: [Vector3::ZERO; 3],
             varying_uv: [Vector2::ZERO; 3],
