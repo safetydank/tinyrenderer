@@ -37,7 +37,8 @@ pub fn load_obj(path: &str) -> Mesh {
                     mesh.tis.push(ti);
                     let ni = triple_iter.next().unwrap().parse::<i32>().unwrap();
                     mesh.nis.push(ni);
-                    mesh.indexes.push(Index::new(vi, ti, ni));
+                    // XXX convert negative indices to positive
+                    mesh.indexes.push(Index::new(vi as usize, ti as usize, ni as usize));
                 }
                 // mesh.faces.push(Face::new(points[0], points[1], points[2]));
             },

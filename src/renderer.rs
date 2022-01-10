@@ -129,13 +129,13 @@ impl Texture {
 
 pub struct Index {
     //  Indexes
-    pub vertex: i32,
-    pub tex: i32,
-    pub normal: i32
+    pub vertex: usize,
+    pub tex: usize,
+    pub normal: usize
 }
 
 impl Index {
-    pub fn new(vertex: i32, tex: i32, normal: i32) -> Self {
+    pub fn new(vertex: usize, tex: usize, normal: usize) -> Self {
         Self {
             vertex,
             tex,
@@ -295,23 +295,18 @@ impl Renderer {
         println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
 
         let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];
+        let mut vs: [Vector4; 3] = [Vector4::ZERO; 3];
+        let mut ns: [Vector4; 3] = [Vector4::ZERO; 3];
+        let mut uvs: [Vector2; 3] = [Vector2::ZERO; 3];
+
         for tri_indexes in mesh.indexes.chunks_exact(3) {
-            // object space vertices
-            let vs: Vec<Vector4> = tri_indexes.iter().map(|i| {
-                let v = mesh.vs[i.vertex as usize];
-                Vector4::new(v.x, v.y, v.z, 1.0)
-            }).collect();
-
-            // normals
-            let ns: Vec<Vector4> = tri_indexes.iter().map(|i| {
-                let n = mesh.ns[i.normal as usize].normalize();
-                Vector4::new(n.x, n.y, n.z, 0.0)
-            }).collect();
-
-            // texture coords
-            let uvs: Vec<Vector2> = tri_indexes.iter().map(|i| {
-                mesh.tex[i.tex as usize]
-            }).collect();
+            for (i, index) in tri_indexes.iter().enumerate() {
+                let v = mesh.vs[index.vertex];
+                vs[i] = Vector4::new(v.x, v.y, v.z, 1.0);
+                let n = mesh.ns[index.normal];
+                ns[i] = Vector4::new(n.x, n.y, n.z, 0.0);
+                uvs[i] = mesh.tex[index.tex];
+            }
             
             // project vertices into screen space points
             for i in 0..vs.len() {
@@ -323,9 +318,9 @@ impl Renderer {
     }
 
     pub fn triangle_shade(&mut self, shader: &impl Shader, clipc: [Vector4; 3]) {
-        // println!("Triangle {} {} {}", pts[0], pts[1], pts[2]);
         let pts = clipc.map(|v| self.viewport * v);
         let pts2 = pts.map(|v| v.xy() / v.w);
+        // println!("Triangle {} {} {}", pts[0], pts[1], pts[2]);
 
         let mut bboxmin = Vector2i::new(self.width-1,  self.height-1); 
         let mut bboxmax = Vector2i::new(0, 0); 
