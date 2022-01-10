@@ -1,7 +1,7 @@
 use std::{cmp, mem};
 use glam::{Vec4Swizzles};
 
-use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, barycentric, Matrix4};
+use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, barycentric, Matrix4, barycentric2};
 
 use crate::util::{buf_index, color_from_vec4, vec4_from_color};
 
@@ -10,54 +10,57 @@ pub trait Shader {
     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool;
 }
 
-pub struct GouraudShader<'a> {
-    pub viewport: Matrix4,
-    pub projection: Matrix4,
-    pub modelview: Matrix4,
-    pub light_dir: Vector3,
-    pub varying_intensity: [f32; 3],
-    pub varying_uv: [Vector2; 3],
-    pub texture: &'a Texture
-}
-
-impl Shader for GouraudShader<'_> {
-    fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
-        let gl_vertex = self.viewport * self.projection * self.modelview * v;
-        let intensity = f32::max(0.0, Vector3::dot(n.xyz(), self.light_dir));
-        self.varying_intensity[tri_index] = intensity;
-        self.varying_uv[tri_index] = uv;
-        // println!("gl vertex {}", gl_vertex);
-        gl_vertex
-    }
-
-    fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
-        let intensity: f32 = self.varying_intensity.iter().zip(bar.to_array()).map(|(intensity, bc)| intensity*bc).sum();
-        let uv: Vector2 = self.varying_uv.iter().zip(bar.to_array())
-            .map(|(tex, w)| *tex * w)
-            .reduce(|l, r| l + r)
-            .unwrap();
-        let c = vec4_from_color(self.texture.sample_lerp(uv.x, uv.y)).xyz() * intensity;
-        *frag = color_from_vec4(Vector4::new(c.x, c.y, c.z, 255.0));
-
-        false
-    }
-}
+// pub struct GouraudShader<'a> {
+//     pub viewport: Matrix4,
+//     pub projection: Matrix4,
+//     pub modelview: Matrix4,
+//     pub light_dir: Vector3,
+//     pub varying_intensity: [f32; 3],
+//     pub varying_uv: [Vector2; 3],
+//     pub texture: &'a Texture
+// }
+// 
+// impl Shader for GouraudShader<'_> {
+//     fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
+//         let gl_vertex = self.viewport * self.projection * self.modelview * v;
+//         let intensity = f32::max(0.0, Vector3::dot(n.xyz(), self.light_dir));
+//         self.varying_intensity[tri_index] = intensity;
+//         self.varying_uv[tri_index] = uv;
+//         // println!("gl vertex {}", gl_vertex);
+//         gl_vertex
+//     }
+// 
+//     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
+//         let intensity: f32 = self.varying_intensity.iter().zip(bar.to_array()).map(|(intensity, bc)| intensity*bc).sum();
+//         let uv: Vector2 = self.varying_uv.iter().zip(bar.to_array())
+//             .map(|(tex, w)| *tex * w)
+//             .reduce(|l, r| l + r)
+//             .unwrap();
+//         let c = vec4_from_color(self.texture.sample_lerp(uv.x, uv.y)).xyz() * intensity;
+//         *frag = color_from_vec4(Vector4::new(c.x, c.y, c.z, 255.0));
+// 
+//         false
+//     }
+// }
 
 pub struct PhongShader<'a> {
-    pub viewport: Matrix4,
     pub projection: Matrix4,
     pub modelview: Matrix4,
     pub light_dir: Vector3,
+    pub varying_v: [Vector4; 3],
     pub varying_n: [Vector3; 3],
     pub varying_uv: [Vector2; 3],
+    pub ndc_tri: [Vector3; 3],
     pub texture: &'a Texture
 }
 
 impl Shader for PhongShader<'_> {
     fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
-        let gl_vertex = self.viewport * self.projection * self.modelview * v;
+        let gl_vertex = self.projection * self.modelview * v;
+        self.varying_v[tri_index] = gl_vertex;
         self.varying_uv[tri_index] = uv;
         self.varying_n[tri_index] = ((self.projection * self.modelview).inverse().transpose() * n).xyz();
+        self.ndc_tri[tri_index] = (gl_vertex / gl_vertex.w).xyz();
         // println!("gl vertex {}", gl_vertex);
         gl_vertex
     }
@@ -173,7 +176,8 @@ pub struct Renderer {
     pub width: i32,
     pub height: i32,
     pub buf: Vec<u32>,
-    pub zbuf: Vec<f32>
+    pub zbuf: Vec<f32>,
+    pub viewport: Matrix4,
 }
 
 const DEPTH: f32 = 255.0;
@@ -217,6 +221,7 @@ impl Renderer {
             height,
             buf: vec![0x000000ff; (width * height) as usize],
             zbuf: vec![0.0; (width * height) as usize],
+            viewport: Matrix4::IDENTITY
         }
     }
     
@@ -267,38 +272,33 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn triangle_shade(&mut self, shader: &impl Shader, pts: [Vector4; 3]) {
+    pub fn triangle_shade(&mut self, shader: &impl Shader, clipc: [Vector4; 3]) {
         // println!("Triangle {} {} {}", pts[0], pts[1], pts[2]);
+        let pts = clipc.map(|v| self.viewport * v);
+        let pts2 = pts.map(|v| v.xy() / v.w);
+
         let mut bboxmin = Vector2i::new(self.width-1,  self.height-1); 
         let mut bboxmax = Vector2i::new(0, 0); 
         let clamp = Vector2i::new(self.width-1, self.height-1); 
-        for pt in pts.iter() {
-            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, (pt.x / pt.w).floor() as i32)); 
-            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, (pt.y / pt.w).floor() as i32)); 
-            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, (pt.x / pt.w).ceil() as i32)); 
-            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, (pt.y / pt.w).ceil() as i32)); 
+        for pt in pts2.iter() {
+            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x.floor() as i32)); 
+            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y.floor() as i32)); 
+            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x.ceil() as i32)); 
+            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y.ceil() as i32)); 
         } 
         
         for x in bboxmin.x..bboxmax.x {
             for y in bboxmin.y..bboxmax.y {
-                let p = Vector3::new(x as f32, y as f32, 0.0);
-                let bc = barycentric(pts[0].xyz() / pts[0].w, pts[1].xyz() / pts[1].w, pts[2].xyz() / pts[2].w, p);
-                if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
+                let p = Vector2::new(x as f32, y as f32);
+                let bc_screen = barycentric2(pts2[0], pts2[1], pts2[2], p);
+                let mut bc_clip = Vector3::new(bc_screen.x / pts[0].w, bc_screen.y / pts[1].w, bc_screen.z / pts[2].w);
+                bc_clip /= bc_clip.x + bc_clip.y + bc_clip.z;
+
+                if bc_screen.x < 0.0 || bc_screen.y < 0.0 || bc_screen.z < 0.0 {
                     continue;
                 }
-                let bc_weights = [bc.x, bc.y, bc.z];
-                // weighted z coord
-                let z: f32 = pts.iter()
-                    .zip(bc_weights)
-                    .map(|(v, weight)| v.z * weight)
-                    .sum();
-                // weighted w coord
-                let w: f32 = pts.iter()
-                    .zip(bc_weights)
-                    .map(|(v, weight)| v.w * weight)
-                    .sum();
-
-                let frag_depth = f32::max(0.0, f32::min(255.0, z/w));
+                
+                let frag_depth = Vector3::dot(Vector3::new(pts[0].z, pts[1].z, pts[2].z), bc_clip);
                 // println!("Frag depth {}", frag_depth);
                 let zindex = buf_index(x, y, self.width);
                 if self.zbuf[zindex] > frag_depth {
@@ -306,7 +306,7 @@ impl Renderer {
                 }
                 
                 let mut color: u32 = 0;
-                let discard = shader.fragment(bc, &mut color);
+                let discard = shader.fragment(bc_clip, &mut color);
                 if !discard {
                     self.zbuf[zindex] = frag_depth;
                     self.pixel(x, y, color);
@@ -316,24 +316,26 @@ impl Renderer {
     }
     
     pub fn draw_mesh_shader(&mut self, mesh: &Mesh, tex: &Texture) {
-        let eye = Vector3::new(1.0, 1.0, 3.0);
+        let eye = Vector3::new(0.0, 1.0, 3.0);
         let center = Vector3::new(0.0, 0.0, 0.0);
         let up = Vector3::new(0.0, 1.0, 0.0);
+        self.viewport = viewport(
+            self.width as f32 / 8.0, self.height as f32 / 8.0,
+            self.width as f32 * 3.0/4.0, self.height as f32 * 3.0/4.0
+        );
 
         let mut shader = PhongShader{
-            viewport: viewport(
-                self.width as f32 / 8.0, self.height as f32 / 8.0,
-                self.width as f32 * 3.0/4.0, self.height as f32 * 3.0/4.0
-            ),
             projection: projection((eye - center).length()),
             modelview: look_at(eye, center, up),
-            light_dir: Vector3::new(1.0, 1.0, 1.0).normalize(),
+            light_dir: Vector3::new(-1.0, 1.0, 1.0).normalize(),
+            varying_v: [Vector4::ZERO; 3],
             varying_n: [Vector3::ZERO; 3],
             varying_uv: [Vector2::ZERO; 3],
-            texture: tex
+            ndc_tri: [Vector3::ZERO; 3],
+            texture: tex,
         };
 
-        println!("vp {}\nproj {}\nmv {}\n", shader.viewport, shader.projection, shader.modelview);
+        println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
 
         let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];
         for tri_indexes in mesh.indexes.chunks_exact(3) {
@@ -355,8 +357,8 @@ impl Renderer {
             }).collect();
             
             // project vertices into screen space points
-            for (i, v) in vs.iter().enumerate() {
-                pts[i] = shader.vertex(*v, ns[i], uvs[i], i);
+            for i in 0..vs.len() {
+                pts[i] = shader.vertex(vs[i], ns[i], uvs[i], i);
             }
             
             self.triangle_shade(&shader, pts);
