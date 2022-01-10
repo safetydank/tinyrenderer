@@ -272,49 +272,6 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn triangle_shade(&mut self, shader: &impl Shader, clipc: [Vector4; 3]) {
-        // println!("Triangle {} {} {}", pts[0], pts[1], pts[2]);
-        let pts = clipc.map(|v| self.viewport * v);
-        let pts2 = pts.map(|v| v.xy() / v.w);
-
-        let mut bboxmin = Vector2i::new(self.width-1,  self.height-1); 
-        let mut bboxmax = Vector2i::new(0, 0); 
-        let clamp = Vector2i::new(self.width-1, self.height-1); 
-        for pt in pts2.iter() {
-            bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x.floor() as i32)); 
-            bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y.floor() as i32)); 
-            bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x.ceil() as i32)); 
-            bboxmax.y = cmp::min(clamp.y, cmp::max(bboxmax.y, pt.y.ceil() as i32)); 
-        } 
-        
-        for x in bboxmin.x..bboxmax.x {
-            for y in bboxmin.y..bboxmax.y {
-                let p = Vector2::new(x as f32, y as f32);
-                let bc_screen = barycentric2(pts2[0], pts2[1], pts2[2], p);
-                let mut bc_clip = Vector3::new(bc_screen.x / pts[0].w, bc_screen.y / pts[1].w, bc_screen.z / pts[2].w);
-                bc_clip /= bc_clip.x + bc_clip.y + bc_clip.z;
-
-                if bc_screen.x < 0.0 || bc_screen.y < 0.0 || bc_screen.z < 0.0 {
-                    continue;
-                }
-                
-                let frag_depth = Vector3::dot(Vector3::new(pts[0].z, pts[1].z, pts[2].z), bc_clip);
-                // println!("Frag depth {}", frag_depth);
-                let zindex = buf_index(x, y, self.width);
-                if self.zbuf[zindex] > frag_depth {
-                    continue
-                }
-                
-                let mut color: u32 = 0;
-                let discard = shader.fragment(bc_clip, &mut color);
-                if !discard {
-                    self.zbuf[zindex] = frag_depth;
-                    self.pixel(x, y, color);
-                }
-            }
-        }
-    }
-    
     pub fn draw_mesh_shader(&mut self, mesh: &Mesh, tex: &Texture) {
         let eye = Vector3::new(0.0, 1.0, 3.0);
         let center = Vector3::new(0.0, 0.0, 0.0);
@@ -365,11 +322,15 @@ impl Renderer {
         }
     }
 
-    pub fn triangle_fill(&mut self, pts: Vec<Vector3>, uvs: Vec<Vector2>, tex: &Texture, intensity: f32) {
+    pub fn triangle_shade(&mut self, shader: &impl Shader, clipc: [Vector4; 3]) {
+        // println!("Triangle {} {} {}", pts[0], pts[1], pts[2]);
+        let pts = clipc.map(|v| self.viewport * v);
+        let pts2 = pts.map(|v| v.xy() / v.w);
+
         let mut bboxmin = Vector2i::new(self.width-1,  self.height-1); 
         let mut bboxmax = Vector2i::new(0, 0); 
         let clamp = Vector2i::new(self.width-1, self.height-1); 
-        for pt in pts.iter() {
+        for pt in pts2.iter() {
             bboxmin.x = cmp::max(0,       cmp::min(bboxmin.x, pt.x.floor() as i32)); 
             bboxmin.y = cmp::max(0,       cmp::min(bboxmin.y, pt.y.floor() as i32)); 
             bboxmax.x = cmp::min(clamp.x, cmp::max(bboxmax.x, pt.x.ceil() as i32)); 
@@ -378,28 +339,27 @@ impl Renderer {
         
         for x in bboxmin.x..bboxmax.x {
             for y in bboxmin.y..bboxmax.y {
-                let p = Vector3::new(x as f32, y as f32, 0.0);
-                let bc = barycentric(pts[0], pts[1], pts[2], p);
-                if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
+                let p = Vector2::new(x as f32, y as f32);
+                let bc_screen = barycentric2(pts2[0], pts2[1], pts2[2], p);
+                let mut bc_clip = Vector3::new(bc_screen.x / pts[0].w, bc_screen.y / pts[1].w, bc_screen.z / pts[2].w);
+                bc_clip /= bc_clip.x + bc_clip.y + bc_clip.z;
+
+                if bc_screen.x < 0.0 || bc_screen.y < 0.0 || bc_screen.z < 0.0 {
                     continue;
                 }
-                let bc_weights = [bc.x, bc.y, bc.z];
-                // weighted z coord
-                let z = pts.iter()
-                    .zip(bc_weights)
-                    .map(|(v, weight)| v.z * weight)
-                    .sum();
-                // weighted tex coords
-                let texcoords = uvs.iter()
-                    .zip(bc_weights)
-                    .map(|(texcoord, weight)| *texcoord * weight)
-                    .reduce(|l, r| l + r)
-                    .unwrap();
+                
+                let frag_depth = Vector3::dot(Vector3::new(pts[0].z, pts[1].z, pts[2].z), bc_clip);
+                // println!("Frag depth {}", frag_depth);
                 let zindex = buf_index(x, y, self.width);
-                if self.zbuf[zindex] < z {
-                    self.zbuf[zindex] = z;
-                    let c = vec4_from_color(tex.sample_lerp(texcoords.x, texcoords.y)) * intensity;
-                    self.pixel(x, y, color_from_vec4(c));
+                if self.zbuf[zindex] > frag_depth {
+                    continue
+                }
+                
+                let mut color: u32 = 0;
+                let discard = shader.fragment(bc_clip, &mut color);
+                if !discard {
+                    self.zbuf[zindex] = frag_depth;
+                    self.pixel(x, y, color);
                 }
             }
         }
@@ -417,41 +377,6 @@ impl Renderer {
             vc.w = 255.0;
             color_from_vec4(vc)
         }).collect()
-    }
-    
-    pub fn draw_mesh(&mut self, mesh: &Mesh, tex: &Texture) {
-        let light_dir = Vector3::new(0.0, 0.0, -1.0);
-        
-        let eye = Vector3::new(1.0, 1.0, 3.0);
-        let center = Vector3::new(0.0, 0.0, 0.0);
-        let vp = viewport(0.0, 0.0, self.width as f32, self.height as f32);
-        let proj = projection((eye - center).length());
-        let modelview = look_at(eye, center, Vector3::new(0.0, 1.0, 0.0));
-
-        for (tri, texi) in mesh.vis.chunks_exact(3).zip(mesh.tis.chunks_exact(3)) {
-            // world space vertices
-            let vs: Vec<Vector3> = tri.iter().map(|i| {
-                mesh.vs[*i as usize]
-            }).collect();
-
-            // project vertices into screen space points
-            let pts: Vec<Vector3> = vs.iter().map(|v| {
-                let v = vp * proj * modelview * Vector4::new(v.x, v.y, v.z, 1.0);
-                Vector3::new(v.x / v.w, v.y / v.w, v.z / v.w)
-            }).collect();
-
-            let uvs: Vec<Vector2> = texi.iter().map(|i| {
-                mesh.tex[*i as usize]
-            }).collect();
-            
-            // normal
-            let n = Vector3::cross(vs[2] - vs[0], vs[1] - vs[0]).normalize();
-            let intensity = Vector3::dot(n, light_dir);
-
-            if intensity > 0.0 {
-                self.triangle_fill(pts, uvs, tex, intensity);
-            }
-        }
     }
 }
 
