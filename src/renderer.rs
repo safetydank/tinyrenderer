@@ -6,7 +6,7 @@ use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, barycentric, Matrix4}
 use crate::util::{buf_index, color_from_vec4, vec4_from_color};
 
 pub trait Shader {
-    fn vertex(&mut self, v: Vector4, n: Vector4, tri_index: usize) -> Vector4;
+    fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4;
     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool;
 }
 
@@ -15,14 +15,16 @@ pub struct GouraudShader {
     pub projection: Matrix4,
     pub modelview: Matrix4,
     pub light_dir: Vector3,
-    pub varying_intensity: [f32; 3]
+    pub varying_intensity: [f32; 3],
+    pub varying_uv: [Vector2; 3]
 }
 
 impl Shader for GouraudShader {
-    fn vertex(&mut self, v: Vector4, n: Vector4, tri_index: usize) -> Vector4 {
+    fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
         let gl_vertex = self.viewport * self.projection * self.modelview * v;
         let intensity = f32::max(0.0, Vector3::dot(n.xyz(), self.light_dir));
         self.varying_intensity[tri_index] = intensity;
+        self.varying_uv[tri_index] = uv;
         // println!("gl vertex {}", gl_vertex);
         gl_vertex
     }
@@ -222,7 +224,7 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn triangle_shade(&mut self, shader: &impl Shader, pts: Vec<Vector4>) {
+    pub fn triangle_shade(&mut self, shader: &impl Shader, pts: [Vector4; 3]) {
         // println!("Triangle {} {} {}", pts[0], pts[1], pts[2]);
         let mut bboxmin = Vector2i::new(self.width-1,  self.height-1); 
         let mut bboxmax = Vector2i::new(0, 0); 
@@ -241,8 +243,6 @@ impl Renderer {
                 if bc.x < 0.0 || bc.y < 0.0 || bc.z < 0.0 {
                     continue;
                 }
-                // println!("BC pts {} {} {} P {} == {}", pts[0], pts[1], pts[2], p, bc);
-                // println!("DRAW");
                 let bc_weights = [bc.x, bc.y, bc.z];
                 // weighted z coord
                 let z: f32 = pts.iter()
@@ -255,7 +255,7 @@ impl Renderer {
                     .map(|(v, weight)| v.w * weight)
                     .sum();
                 let frag_depth = f32::max(0.0, f32::min(255.0, z/w));
-                println!("Frag depth {}", frag_depth);
+                // println!("Frag depth {}", frag_depth);
                 let zindex = buf_index(x, y, self.width);
                 if self.zbuf[zindex] > frag_depth {
                     continue
@@ -266,7 +266,6 @@ impl Renderer {
                 if !discard {
                     self.zbuf[zindex] = frag_depth;
                     self.pixel(x, y, color);
-                    // self.pixel(x, y, 0xff0000ff);
                 }
             }
         }
@@ -286,10 +285,12 @@ impl Renderer {
             modelview: look_at(eye, center, up),
             light_dir: Vector3::new(1.0, 1.0, 1.0).normalize(),
             varying_intensity: [0.0; 3],
+            varying_uv: [Vector2::ZERO; 3]
         };
 
         println!("vp {}\nproj {}\nmv {}\n", shader.viewport, shader.projection, shader.modelview);
         // for (tri, texi, ni) in mesh.vis.chunks_exact(3).zip(mesh.tis.chunks_exact(3)).zip(mesh.nis.chunks_exact(3)) {
+        let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];
         for tri_indexes in mesh.indexes.chunks_exact(3) {
             // object space vertices
             let vs: Vec<Vector4> = tri_indexes.iter().map(|i| {
@@ -303,18 +304,21 @@ impl Renderer {
                 Vector4::new(n.x, n.y, n.z, 1.0)
             }).collect();
 
-            // project vertices into screen space points
-            let pts: Vec<Vector4> = vs.iter().zip(ns.iter()).enumerate().map(|(tri_index, (v, n))| {
-                shader.vertex(*v, *n, tri_index)
+            // texture coords
+            let uvs: Vec<Vector2> = tri_indexes.iter().map(|i| {
+                mesh.tex[i.tex as usize]
             }).collect();
-            // println!("Vertex intensities {} {} {}", shader.varying_intensity[0], shader.varying_intensity[1],  shader.varying_intensity[2]);
+            
+            // project vertices into screen space points
+            for (i, v) in vs.iter().enumerate() {
+                pts[i] = shader.vertex(*v, ns[i], uvs[i], i);
+            }
+            // let pts: Vec<Vector4> = vs.iter().zip(ns.iter()).enumerate().map(|(tri_index, (v, n))| {
+            //     shader.vertex(*v, *n, uvs, tri_index)
+            // }).collect();
             
             self.triangle_shade(&shader, pts);
 
-            // let uvs: Vec<Vector2> = texi.iter().map(|i| {
-            //     mesh.tex[*i as usize]
-            // }).collect();
-            // 
             // // normal
             // let n = Vector3::cross(vs[2] - vs[0], vs[1] - vs[0]).normalize();
             // let intensity = Vector3::dot(n, light_dir);
