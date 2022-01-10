@@ -69,12 +69,17 @@ impl Shader for PhongShader<'_> {
         let bn = self.varying_n.iter().zip(bar.to_array())
             .map(|(n, w)| (*n * w))
             .reduce(|l, r| l + r)
-            .unwrap();
+            .unwrap()
+            .normalize();
+
         let uv: Vector2 = self.varying_uv.iter().zip(bar.to_array())
             .map(|(tex, w)| *tex * w)
             .reduce(|l, r| l + r)
             .unwrap();
+
+        //  diffuse lighting intensity
         let diffuse = f32::max(0.0, Vector3::dot(bn, self.light_dir));
+
         let c = vec4_from_color(self.texture.sample_lerp(uv.x, uv.y)).xyz() * diffuse;
         *frag = color_from_vec4(Vector4::new(c.x, c.y, c.z, 255.0));
 
@@ -308,7 +313,7 @@ impl Renderer {
                 uvs[i] = mesh.tex[index.tex];
             }
             
-            // project vertices into screen space points
+            // project vertices into screen space points (same as shader's varying_v)
             for i in 0..vs.len() {
                 pts[i] = shader.vertex(vs[i], ns[i], uvs[i], i);
             }
