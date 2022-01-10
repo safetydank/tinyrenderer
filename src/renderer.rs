@@ -43,6 +43,43 @@ impl Shader for GouraudShader<'_> {
     }
 }
 
+pub struct PhongShader<'a> {
+    pub viewport: Matrix4,
+    pub projection: Matrix4,
+    pub modelview: Matrix4,
+    pub light_dir: Vector3,
+    pub varying_n: [Vector3; 3],
+    pub varying_uv: [Vector2; 3],
+    pub texture: &'a Texture
+}
+
+impl Shader for PhongShader<'_> {
+    fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
+        let gl_vertex = self.viewport * self.projection * self.modelview * v;
+        self.varying_uv[tri_index] = uv;
+        self.varying_n[tri_index] = ((self.projection * self.modelview).inverse().transpose() * n).xyz();
+        // println!("gl vertex {}", gl_vertex);
+        gl_vertex
+    }
+
+    fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
+        let bn = self.varying_n.iter().zip(bar.to_array())
+            .map(|(n, w)| (*n * w))
+            .reduce(|l, r| l + r)
+            .unwrap();
+        let uv: Vector2 = self.varying_uv.iter().zip(bar.to_array())
+            .map(|(tex, w)| *tex * w)
+            .reduce(|l, r| l + r)
+            .unwrap();
+        let diffuse = f32::max(0.0, Vector3::dot(bn, self.light_dir));
+        let c = vec4_from_color(self.texture.sample_lerp(uv.x, uv.y)).xyz() * diffuse;
+        *frag = color_from_vec4(Vector4::new(c.x, c.y, c.z, 255.0));
+
+        false
+    }
+}
+
+
 pub struct Texture {
     pub width: f32,
     pub height: f32,
@@ -274,17 +311,16 @@ impl Renderer {
                     self.zbuf[zindex] = frag_depth;
                     self.pixel(x, y, color);
                 }
-                
             }
         }
     }
     
     pub fn draw_mesh_shader(&mut self, mesh: &Mesh, tex: &Texture) {
-        let eye = Vector3::new(0.0, -1.0, 3.0);
+        let eye = Vector3::new(1.0, 1.0, 3.0);
         let center = Vector3::new(0.0, 0.0, 0.0);
         let up = Vector3::new(0.0, 1.0, 0.0);
 
-        let mut shader = GouraudShader{
+        let mut shader = PhongShader{
             viewport: viewport(
                 self.width as f32 / 8.0, self.height as f32 / 8.0,
                 self.width as f32 * 3.0/4.0, self.height as f32 * 3.0/4.0
@@ -292,7 +328,7 @@ impl Renderer {
             projection: projection((eye - center).length()),
             modelview: look_at(eye, center, up),
             light_dir: Vector3::new(1.0, 1.0, 1.0).normalize(),
-            varying_intensity: [0.0; 3],
+            varying_n: [Vector3::ZERO; 3],
             varying_uv: [Vector2::ZERO; 3],
             texture: tex
         };
@@ -310,7 +346,7 @@ impl Renderer {
             // normals
             let ns: Vec<Vector4> = tri_indexes.iter().map(|i| {
                 let n = mesh.ns[i.normal as usize].normalize();
-                Vector4::new(n.x, n.y, n.z, 1.0)
+                Vector4::new(n.x, n.y, n.z, 0.0)
             }).collect();
 
             // texture coords
