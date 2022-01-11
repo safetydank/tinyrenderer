@@ -51,7 +51,8 @@ pub struct PhongShader<'a> {
     pub varying_n: [Vector3; 3],
     pub varying_uv: [Vector2; 3],
     pub ndc_tri: [Vector3; 3],
-    pub texture: &'a Texture
+    pub diffuse: &'a Texture,
+    pub normal: &'a Texture
 }
 
 impl Shader for PhongShader<'_> {
@@ -80,7 +81,7 @@ impl Shader for PhongShader<'_> {
         //  diffuse lighting intensity
         let diffuse = f32::max(0.0, Vector3::dot(bn, self.light_dir));
 
-        let c = vec4_from_color(self.texture.sample_lerp(uv.x, uv.y)).xyz() * diffuse;
+        let c = vec4_from_color(self.diffuse.sample_lerp(uv.x, uv.y)).xyz() * diffuse;
         *frag = color_from_vec4(Vector4::new(c.x, c.y, c.z, 255.0));
 
         false
@@ -276,7 +277,7 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn draw_mesh_shader(&mut self, mesh: &Mesh, tex: &Texture) {
+    pub fn draw_mesh_shader(&mut self, mesh: &Mesh, diffuse: &Texture, normal: &Texture) {
         let eye = Vector3::new(1.0, 1.0, 3.0);
         let center = Vector3::new(0.0, 0.0, 0.0);
         let up = Vector3::new(0.0, 1.0, 0.0);
@@ -293,7 +294,8 @@ impl Renderer {
             varying_n: [Vector3::ZERO; 3],
             varying_uv: [Vector2::ZERO; 3],
             ndc_tri: [Vector3::ZERO; 3],
-            texture: tex,
+            diffuse,
+            normal,
         };
 
         println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);

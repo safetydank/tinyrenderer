@@ -16,10 +16,15 @@ use tinyrenderer::util::{load_png_texture, save_png};
 const WIDTH: i32 = 1000;
 const HEIGHT: i32 = 1000;
 
-fn draw(r: &mut Renderer, tex: &Texture) {
+fn draw(r: &mut Renderer) {
     let mesh = load_obj("obj/african_head.obj");
+    let diffuse = load_png_texture("obj/african_head_diffuse.png");
+    let normal= load_png_texture("obj/african_head_nm_tangent.png");
+
+    diffuse.log_debug();
+    normal.log_debug();
     // r.draw_mesh(&mesh, tex);
-    r.draw_mesh_shader(&mesh, tex);
+    r.draw_mesh_shader(&mesh, &diffuse, &normal);
 }
 
 fn main() -> Result<(), Error> {
@@ -43,9 +48,7 @@ fn main() -> Result<(), Error> {
     };
 
     let mut renderer = Renderer::new(WIDTH, HEIGHT);
-    let texture = load_png_texture("obj/african_head_diffuse.png");
-    texture.log_debug();
-    draw(&mut renderer, &texture);
+    draw(&mut renderer);
 
     save_png("shaded.png", renderer.width as u32, renderer.height as u32, renderer.buf.as_slice());
     save_png("zbuf.png", renderer.width as u32, renderer.height as u32, renderer.zbuf_buf().as_slice());
