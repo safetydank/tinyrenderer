@@ -3,7 +3,9 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::ops::{Add, Mul};
 
-use crate::geometry::Vector4;
+use glam::Vec4Swizzles;
+
+use crate::geometry::{Vector4, Vector3};
 use crate::renderer::Texture;
 
 pub fn load_png_texture(path_str: &str) -> Texture {
@@ -25,6 +27,14 @@ pub fn load_png_texture(path_str: &str) -> Texture {
 
 pub fn vec4_from_color(c: u32) -> Vector4 {
     Vector4::new(((c & 0xff000000) >> 24) as f32, ((c & 0xff0000) >> 16) as f32, ((c & 0xff00) >> 8) as f32, (c & 0xff) as f32)
+}
+
+pub fn vec4_gl_from_color(c: u32) -> Vector4 {
+    vec4_from_color(c) / 255.0
+}
+
+pub fn vec3_gl_from_color(c: u32) -> Vector3 {
+    vec4_gl_from_color(c).xyz()
 }
 
 pub fn color_from_vec4(v: Vector4) -> u32 {

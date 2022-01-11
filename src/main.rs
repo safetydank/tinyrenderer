@@ -20,6 +20,7 @@ fn draw(r: &mut Renderer) {
     let mesh = load_obj("obj/african_head.obj");
     let diffuse = load_png_texture("obj/african_head_diffuse.png");
     let normal= load_png_texture("obj/african_head_nm_tangent.png");
+    // let normal= load_png_texture("obj/african_head_nm.png");
 
     diffuse.log_debug();
     normal.log_debug();
