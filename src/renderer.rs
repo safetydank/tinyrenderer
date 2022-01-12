@@ -1,9 +1,9 @@
 use std::{cmp, mem};
 use glam::{Vec4Swizzles};
 
-use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, barycentric, Matrix4, barycentric2, Matrix3};
+use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, Matrix4, barycentric2, Matrix3};
 
-use crate::util::{buf_index, color_from_vec4, vec4_from_color, vec3_gl_from_color};
+use crate::util::{buf_index, color_from_vec4, vec4_from_color, vec3_normal_from_color};
 
 pub trait Shader {
     fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4;
@@ -83,12 +83,11 @@ impl Shader for PhongShader<'_> {
         
         let i = ai * Vector3::new(self.varying_uv[1].x - self.varying_uv[0].x, self.varying_uv[2].x - self.varying_uv[0].x, 0.0);
         let j = ai * Vector3::new(self.varying_uv[1].y - self.varying_uv[0].y, self.varying_uv[2].y - self.varying_uv[0].y, 0.0);
-        
+
         let b = Matrix3::from_cols(i.normalize(), j.normalize(), bn);
         
         // Normal map lookup + perturb
-        // println!("Normal: i {} j {} normal {}", i, j, vec3_gl_from_color(self.normal.sample_nn(uv.x, uv.y)));
-        let n = (((b * vec3_gl_from_color(self.normal.sample_nn(uv.x, uv.y))) / 255.0 * 2.0) - Vector3::ONE).normalize();
+        let n = (b * (vec3_normal_from_color(self.normal.sample_nn(uv.x, uv.y)))).normalize();
         // let n = vec3_gl_from_color(self.normal.sample_nn(uv.x, uv.y)).normalize();
 
         //  diffuse lighting intensity

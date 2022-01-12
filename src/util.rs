@@ -37,6 +37,10 @@ pub fn vec3_gl_from_color(c: u32) -> Vector3 {
     vec4_gl_from_color(c).xyz()
 }
 
+pub fn vec3_normal_from_color(c: u32) -> Vector3 {
+    (vec4_gl_from_color(c).xyz() * 2.0) - Vector3::ONE
+}
+
 pub fn color_from_vec4(v: Vector4) -> u32 {
     let r = v.x as u32;
     let g = v.y as u32;
