@@ -16,6 +16,9 @@ winit = "0.25"
 winit_input_helper = "0.10"
 glam = "0.20.0"
 regex = "1.5.4"
+egui = "0.15"
+egui_wgpu_backend = { git = "https://github.com/hasenbanck/egui_wgpu_backend.git", rev = "961125e7bd2c71c5ead1d61a7ca7ffa8c0d17f48" }
+egui-winit = { version = "0.15", default-features = false, features = ["links"] }
 
 [dev-dependencies]
 criterion = "0.3"

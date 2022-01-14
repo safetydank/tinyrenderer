@@ -12,6 +12,7 @@ use winit_input_helper::WinitInputHelper;
 use tinyrenderer::renderer::{Renderer, Texture};
 use tinyrenderer::objloader::{load_obj};
 use tinyrenderer::util::{load_png_texture, save_png};
+use tinyrenderer::gui::Framework;
 
 const WIDTH: i32 = 1000;
 const HEIGHT: i32 = 1000;
@@ -42,10 +43,14 @@ fn main() -> Result<(), Error> {
             .unwrap()
     };
 
-    let mut pixels = {
+    let (mut pixels, mut framework) = {
         let window_size = window.inner_size();
+        let scale_factor = window.scale_factor() as f32;
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?
+        let pixels = Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?;
+        let framework = Framework::new(window_size.width, window_size.height, scale_factor, &pixels);
+
+        (pixels, framework)
     };
 
     let mut renderer = Renderer::new(WIDTH, HEIGHT);
@@ -56,19 +61,6 @@ fn main() -> Result<(), Error> {
 
 
     event_loop.run(move |event, _, control_flow| {
-        // Draw the current frame
-        if let Event::RedrawRequested(_) = event {
-            renderer.draw(pixels.get_frame());
-            if pixels
-                .render()
-                .map_err(|e| error!("pixels.render() failed: {}", e))
-                .is_err()
-            {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-        }
-
         // Handle input events
         if input.update(&event) {
             // Close events
@@ -85,6 +77,35 @@ fn main() -> Result<(), Error> {
             // Update internal state and request a redraw
             // XXX .update()
             window.request_redraw();
+        }
+        
+        match event {
+            Event::WindowEvent { event, .. } => {
+                // Update egui inputs
+                framework.handle_event(&event);
+            }
+            Event::RedrawRequested(_) => {
+                renderer.draw(pixels.get_frame());
+                framework.prepare(&window);
+                let render_result = pixels.render_with(|encoder, render_target, context| {
+                    // Render the world texture
+                    context.scaling_renderer.render(encoder, render_target);
+
+                    // Render egui
+                    framework.render(encoder, render_target, context)?;
+
+                    Ok(())
+                });
+
+                // Basic error handling
+                if render_result
+                    .map_err(|e| error!("pixels.render() failed: {}", e))
+                    .is_err()
+                {
+                    *control_flow = ControlFlow::Exit;
+                }
+            }
+            _ => (),
         }
     });
 }

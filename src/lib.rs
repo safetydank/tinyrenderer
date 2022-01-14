@@ -5,3 +5,4 @@ pub mod renderer;
 pub mod objloader;
 pub mod geometry;
 pub mod util;
+pub mod gui;
