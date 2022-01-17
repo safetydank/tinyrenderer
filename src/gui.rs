@@ -1,7 +1,9 @@
-use egui::{ClippedMesh, CtxRef};
+use egui::{ClippedMesh, CtxRef, Ui};
 use egui_wgpu_backend::{BackendError, RenderPass, ScreenDescriptor};
 use pixels::{wgpu, PixelsContext};
 use winit::window::Window;
+
+use crate::{geometry::Vector3, renderer::RendererState};
 
 /// Manages all state required for rendering egui over `Pixels`.
 pub struct Framework {
@@ -13,13 +15,14 @@ pub struct Framework {
     paint_jobs: Vec<ClippedMesh>,
 
     // State for the GUI
-    gui: Gui,
+    pub gui: Gui,
 }
 
-/// Example application state. A real application will need a lot more state than this.
-struct Gui {
+pub struct Gui {
     /// Only show the egui window when true.
     window_open: bool,
+    
+    pub renderer_state: RendererState,
 }
 
 impl Framework {
@@ -46,8 +49,8 @@ impl Framework {
     }
 
     /// Handle input events from the window manager.
-    pub fn handle_event(&mut self, event: &winit::event::WindowEvent) {
-        self.egui_state.on_event(&self.egui_ctx, event);
+    pub fn handle_event(&mut self, event: &winit::event::WindowEvent) -> bool {
+        self.egui_state.on_event(&self.egui_ctx, event)
     }
 
     /// Resize egui.
@@ -112,35 +115,67 @@ impl Framework {
 impl Gui {
     /// Create a `Gui`.
     fn new() -> Self {
-        Self { window_open: true }
+        Self {
+            window_open: true,
+            renderer_state: RendererState{
+                model: Vector3::ZERO,
+                eye: Vector3::new(1.0, 1.0, 3.0),
+                center: Vector3::ZERO,
+                up: Vector3::new(0.0, 1.0, 0.0),
+                light_dir: Vector3::new(1.0, 1.0, 1.0),
+                rotation: Vector3::ZERO,
+            }
+        }
     }
 
     /// Create the UI using egui.
     fn ui(&mut self, ctx: &CtxRef) {
+        let RendererState {
+            model,
+            eye,
+            center,
+            up,
+            light_dir,
+            rotation,
+        } = &mut self.renderer_state;
+
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                egui::menu::menu(ui, "File", |ui| {
-                    if ui.button("About...").clicked() {
+                egui::menu::menu(ui, "Controls", |ui| {
+                    if ui.button("Renderer").clicked() {
                         self.window_open = true;
                     }
                 })
             });
         });
 
-        egui::Window::new("Hello, egui!")
+        egui::Window::new("Renderer")
             .open(&mut self.window_open)
             .show(ctx, |ui| {
-                ui.label("This example demonstrates using egui with pixels.");
-                ui.label("Made with 💖 in San Francisco!");
-
-                ui.separator();
-
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x /= 2.0;
-                    ui.label("Learn more about egui at");
-                    ui.hyperlink("https://docs.rs/egui");
+                egui::Grid::new("renderer").show(ui, |ui| {
+                    drag_vec3_row(ui, "Model", model);
+                    drag_vec3_row(ui, "Eye", eye);
+                    drag_vec3_row(ui, "Center", center);
+                    drag_vec3_row(ui, "Up", up);
+                    drag_vec3_row(ui, "Light dir", light_dir);
+                    drag_vec3_row(ui, "Rotation", rotation);
                 });
             });
     }
+    
+}
+
+//  A grid row with a label and 3 draggable numbers bound to a Vector3 
+fn drag_vec3_row(ui: &mut Ui, label: &str, v: &mut Vector3) {
+    ui.label(label);
+    ui.horizontal(|ui| {
+        ui.label("x");
+        ui.add(egui::DragValue::new(&mut v.x).speed(1.0));
+        ui.label("y");
+        ui.add(egui::DragValue::new(&mut v.y).speed(1.0));
+        ui.label("z");
+        ui.add(egui::DragValue::new(&mut v.z).speed(1.0));
+    });
+    ui.end_row();
 }
 

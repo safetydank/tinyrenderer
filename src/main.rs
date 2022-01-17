@@ -1,15 +1,17 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+use egui::TextBuffer;
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
+use tinyrenderer::geometry::Vector3;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
-use tinyrenderer::renderer::{Renderer, Texture};
+use tinyrenderer::renderer::{Renderer, Texture, RendererState};
 use tinyrenderer::objloader::{load_obj};
 use tinyrenderer::util::{load_png_texture, save_png};
 use tinyrenderer::gui::Framework;
@@ -17,7 +19,7 @@ use tinyrenderer::gui::Framework;
 const WIDTH: i32 = 1000;
 const HEIGHT: i32 = 1000;
 
-fn draw(r: &mut Renderer) {
+fn draw(r: &mut Renderer, s: &RendererState) {
     let mesh = load_obj("obj/african_head.obj");
     let diffuse = load_png_texture("obj/african_head_diffuse.png");
     let normal= load_png_texture("obj/african_head_nm_tangent.png");
@@ -26,7 +28,7 @@ fn draw(r: &mut Renderer) {
     diffuse.log_debug();
     normal.log_debug();
     // r.draw_mesh(&mesh, tex);
-    r.draw_mesh_shader(&mesh, &diffuse, &normal);
+    r.draw_mesh_shader(s, &mesh, &diffuse, &normal);
 }
 
 fn main() -> Result<(), Error> {
@@ -54,7 +56,16 @@ fn main() -> Result<(), Error> {
     };
 
     let mut renderer = Renderer::new(WIDTH, HEIGHT);
-    draw(&mut renderer);
+    // let mut renderer_state = RendererState{
+    //     model: Vector3::ZERO,
+    //     eye: Vector3::new(1.0, 1.0, 3.0),
+    //     center: Vector3::ZERO,
+    //     up: Vector3::new(0.0, 1.0, 0.0),
+    //     light_dir: Vector3::new(1.0, 1.0, 1.0),
+    //     rotation: Vector3::ZERO,
+    // };
+    // renderer.clear();
+    draw(&mut renderer, &framework.gui.renderer_state);
 
     save_png("shaded.png", renderer.width as u32, renderer.height as u32, renderer.buf.as_slice());
     save_png("zbuf.png", renderer.width as u32, renderer.height as u32, renderer.zbuf_buf().as_slice());
@@ -82,7 +93,10 @@ fn main() -> Result<(), Error> {
         match event {
             Event::WindowEvent { event, .. } => {
                 // Update egui inputs
-                framework.handle_event(&event);
+                if framework.handle_event(&event) {
+                    renderer.clear();
+                    draw(&mut renderer, &framework.gui.renderer_state);
+                }
             }
             Event::RedrawRequested(_) => {
                 renderer.draw(pixels.get_frame());
