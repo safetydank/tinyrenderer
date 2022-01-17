@@ -3,7 +3,7 @@ use egui_wgpu_backend::{BackendError, RenderPass, ScreenDescriptor};
 use pixels::{wgpu, PixelsContext};
 use winit::window::Window;
 
-use crate::{geometry::Vector3, renderer::RendererState};
+use crate::{geometry::Vector3, renderer::RendererState, objloader::load_obj, util::load_png_texture};
 
 /// Manages all state required for rendering egui over `Pixels`.
 pub struct Framework {
@@ -118,6 +118,9 @@ impl Gui {
         Self {
             window_open: true,
             renderer_state: RendererState{
+                mesh: load_obj("obj/african_head.obj"),
+                diffuse: load_png_texture("obj/african_head_diffuse.png"),
+                normal: load_png_texture("obj/african_head_nm_tangent.png"),
                 model: Vector3::ZERO,
                 eye: Vector3::new(1.0, 1.0, 3.0),
                 center: Vector3::ZERO,
@@ -137,6 +140,7 @@ impl Gui {
             up,
             light_dir,
             rotation,
+            ..
         } = &mut self.renderer_state;
 
         egui::TopBottomPanel::top("menubar_container").show(ctx, |ui| {

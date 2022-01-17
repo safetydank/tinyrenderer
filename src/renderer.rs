@@ -6,6 +6,10 @@ use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, Matrix4, barycentric2
 use crate::util::{buf_index, color_from_vec4, vec4_from_color, vec3_normal_from_color};
 
 pub struct RendererState {
+    pub mesh: Mesh,
+    pub diffuse: Texture,
+    pub normal: Texture,
+
     pub model: Vector3,
     pub eye: Vector3,
     pub center: Vector3,
@@ -318,7 +322,7 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
-    pub fn draw_mesh_shader(&mut self, renderer_state: &RendererState, mesh: &Mesh, diffuse: &Texture, normal: &Texture) {
+    pub fn draw_mesh_shader(&mut self, renderer_state: &RendererState) {
         let RendererState {
             eye,
             center,
@@ -326,6 +330,12 @@ impl Renderer {
             light_dir,
             ..
         } = *renderer_state;
+        let RendererState {
+            mesh,
+            diffuse,
+            normal,
+            ..
+        } = renderer_state;
         
         self.viewport = viewport(
             self.width as f32 / 8.0, self.height as f32 / 8.0,
@@ -345,6 +355,8 @@ impl Renderer {
         };
 
         println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
+        diffuse.log_debug();
+        normal.log_debug();
         // println!("glam mv {}", Matrix4::look_at_rh(eye, center, up));
 
         let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];
