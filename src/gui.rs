@@ -119,9 +119,9 @@ impl Gui {
             window_open: true,
             renderer_state: RendererState{
                 display_buffer: DisplayBuffer::Frame,
-                mesh: load_obj("obj/african_head.obj"),
-                diffuse: load_png_texture("obj/african_head_diffuse.png"),
-                normal: load_png_texture("obj/african_head_nm_tangent.png"),
+                mesh: load_obj("obj/diablo3_pose.obj"),
+                diffuse: load_png_texture("obj/diablo3_pose_diffuse.png"),
+                normal: load_png_texture("obj/diablo3_pose_nm_tangent.png"),
                 model: Vector3::ZERO,
                 eye: Vector3::new(1.0, 1.0, 3.0),
                 center: Vector3::ZERO,
