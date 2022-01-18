@@ -3,7 +3,7 @@ use egui_wgpu_backend::{BackendError, RenderPass, ScreenDescriptor};
 use pixels::{wgpu, PixelsContext};
 use winit::window::Window;
 
-use crate::{geometry::Vector3, renderer::RendererState, objloader::load_obj, util::load_png_texture};
+use crate::{geometry::Vector3, renderer::{RendererState, DisplayBuffer}, objloader::load_obj, util::load_png_texture};
 
 /// Manages all state required for rendering egui over `Pixels`.
 pub struct Framework {
@@ -118,6 +118,7 @@ impl Gui {
         Self {
             window_open: true,
             renderer_state: RendererState{
+                display_buffer: DisplayBuffer::Frame,
                 mesh: load_obj("obj/african_head.obj"),
                 diffuse: load_png_texture("obj/african_head_diffuse.png"),
                 normal: load_png_texture("obj/african_head_nm_tangent.png"),
@@ -140,6 +141,7 @@ impl Gui {
             up,
             light_dir,
             rotation,
+            display_buffer,
             ..
         } = &mut self.renderer_state;
 
@@ -163,6 +165,13 @@ impl Gui {
                     drag_vec3_row(ui, "Up", up);
                     drag_vec3_row(ui, "Light dir", light_dir);
                     drag_vec3_row(ui, "Rotation", rotation);
+
+                    ui.label("Display buffer");
+                    ui.horizontal(|ui| {
+                        ui.radio_value(display_buffer, DisplayBuffer::Frame, "Frame");
+                        ui.radio_value(display_buffer, DisplayBuffer::Depth, "Depth");
+                    });
+                    ui.end_row();
                 });
             });
     }

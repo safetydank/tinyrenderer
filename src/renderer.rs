@@ -3,9 +3,17 @@ use glam::{Vec4Swizzles};
 
 use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, Matrix4, barycentric2, Matrix3};
 
-use crate::util::{buf_index, color_from_vec4, vec4_from_color, vec3_normal_from_color};
+use crate::util::{buf_index, color_from_vec4, vec4_from_color, vec3_normal_from_color, buf_index_yinvert};
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum DisplayBuffer {
+    Frame,
+    Depth,
+}
 
 pub struct RendererState {
+    pub display_buffer: DisplayBuffer,
+
     pub mesh: Mesh,
     pub diffuse: Texture,
     pub normal: Texture,
@@ -410,7 +418,7 @@ impl Renderer {
                 
                 let frag_depth = Vector3::dot(Vector3::new(pts[0].z, pts[1].z, pts[2].z), bc_clip);
                 // println!("Frag depth {}", frag_depth);
-                let zindex = buf_index(x, y, self.width);
+                let zindex = buf_index_yinvert(x, y, self.width, self.height);
                 if self.zbuf[zindex] > frag_depth {
                     continue
                 }
@@ -425,10 +433,20 @@ impl Renderer {
         }
     }
 
-    pub fn draw(&self, frame: &mut [u8]) {
-        for (b, p) in self.buf.iter().zip(frame.chunks_exact_mut(4)) {
-            p.copy_from_slice(&b.to_be_bytes());
-        }
+    pub fn draw(&self, frame: &mut [u8], display_buffer: DisplayBuffer) {
+        let mut draw_buf = |buf: &Vec<u32>| {
+            for (b, p) in buf.iter().zip(frame.chunks_exact_mut(4)) {
+                p.copy_from_slice(&b.to_be_bytes());
+            }
+        };
+
+        match display_buffer {
+            DisplayBuffer::Frame => draw_buf(&self.buf),
+            DisplayBuffer::Depth => {
+                let zbuf = self.zbuf_buf();
+                draw_buf(&zbuf);
+            }
+        };
     }
 
     pub fn zbuf_buf(&self) -> Vec<u32> {

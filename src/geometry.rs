@@ -7,9 +7,9 @@ pub type Vector4 = Vec4;
 pub type Matrix3 = Mat3;
 pub type Matrix4 = Mat4;
 
-fn cross_v3(v1: Vector3, v2: Vector3) -> Vector3 {
-    Vector3::new(v1.y*v2.z - v1.z*v2.y, v1.z*v2.x - v1.x*v2.z, v1.x*v2.y - v1.y*v2.x)
-}
+// fn cross_v3(v1: Vector3, v2: Vector3) -> Vector3 {
+//     Vector3::new(v1.y*v2.z - v1.z*v2.y, v1.z*v2.x - v1.x*v2.z, v1.x*v2.y - v1.y*v2.x)
+// }
 
 pub fn barycentric(a: Vector3, b: Vector3, c: Vector3, p: Vector3) -> Vector3 { 
     let s0 = Vector3::new(c.x-a.x, b.x-a.x, a.x-p.x);

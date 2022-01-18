@@ -1,19 +1,16 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
-use egui::TextBuffer;
 use log::error;
 use pixels::{Error, Pixels, SurfaceTexture};
-use tinyrenderer::geometry::Vector3;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 
-use tinyrenderer::renderer::{Renderer, Texture, RendererState};
-use tinyrenderer::objloader::{load_obj};
-use tinyrenderer::util::{load_png_texture, save_png};
+use tinyrenderer::renderer::{Renderer,  RendererState};
+use tinyrenderer::util::{save_png};
 use tinyrenderer::gui::Framework;
 
 const WIDTH: i32 = 1000;
@@ -91,7 +88,7 @@ fn main() -> Result<(), Error> {
                 }
             }
             Event::RedrawRequested(_) => {
-                renderer.draw(pixels.get_frame());
+                renderer.draw(pixels.get_frame(), framework.gui.renderer_state.display_buffer);
                 framework.prepare(&window);
                 let render_result = pixels.render_with(|encoder, render_target, context| {
                     // Render the world texture

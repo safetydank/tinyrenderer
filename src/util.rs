@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Sub};
 
 use glam::Vec4Swizzles;
 
@@ -64,6 +64,10 @@ impl Cast<usize> for f32 {
 
 pub fn buf_index<T: Mul<Output = T> + Add<Output = T> + Cast<usize>>(x: T, y: T, stride: T) -> usize {
     return (y * stride + x).cast();
+}
+
+pub fn buf_index_yinvert<T: Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Cast<usize>>(x: T, y: T, stride: T, height: T) -> usize {
+    return ((height - y) * stride + x).cast();
 }
 
 pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {
