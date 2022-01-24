@@ -17,7 +17,8 @@ const WIDTH: i32 = 1000;
 const HEIGHT: i32 = 1000;
 
 fn draw(r: &mut Renderer, s: &RendererState) {
-    r.draw_mesh_shader(s);
+    // r.draw_mesh_shader(s);
+    r.draw_shadow_mesh_shader(s);
 }
 
 fn main() -> Result<(), Error> {
@@ -40,6 +41,9 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         let pixels = Pixels::new(WIDTH as u32, HEIGHT as u32, surface_texture)?;
         let framework = Framework::new(window_size.width, window_size.height, scale_factor, &pixels);
+
+        framework.gui.renderer_state.diffuse.log_debug();
+        framework.gui.renderer_state.normal.log_debug();
 
         (pixels, framework)
     };

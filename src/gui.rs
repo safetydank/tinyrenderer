@@ -123,10 +123,10 @@ impl Gui {
                 diffuse: load_png_texture("obj/diablo3_pose_diffuse.png"),
                 normal: load_png_texture("obj/diablo3_pose_nm_tangent.png"),
                 model: Vector3::ZERO,
-                eye: Vector3::new(1.0, 1.0, 3.0),
+                eye: Vector3::new(1.0, 1.0, 0.0),
                 center: Vector3::ZERO,
                 up: Vector3::new(0.0, 1.0, 0.0),
-                light_dir: Vector3::new(1.0, 1.0, 1.0),
+                light_dir: Vector3::new(-1.0, 1.0, 0.0),
                 rotation: Vector3::ZERO,
             }
         }

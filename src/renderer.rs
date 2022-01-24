@@ -3,7 +3,7 @@ use glam::{Vec4Swizzles};
 
 use crate::geometry::{Vector2, Vector2i, Vector3, Vector4, Matrix4, barycentric2, Matrix3};
 
-use crate::util::{buf_index, color_from_vec4, vec4_from_color, vec3_normal_from_color, buf_index_yinvert};
+use crate::util::{buf_index, color_from_vec4, vec4_from_color, vec3_normal_from_color, buf_index_yinvert, color_from_ndc_vec3};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum DisplayBuffer {
@@ -114,8 +114,9 @@ impl Shader for PhongShader<'_> {
         //  diffuse lighting intensity
         // let diffuse = f32::max(0.0, Vector3::dot(bn, self.light_dir));
         let diffuse = f32::max(0.0, Vector3::dot(n, self.light_dir));
+        let d2 = 1.0 - (1.0 - diffuse) * (1.0 - diffuse);
 
-        let c = vec4_from_color(self.diffuse.sample_lerp(uv.x, uv.y)).xyz() * diffuse;
+        let c = vec4_from_color(self.diffuse.sample_lerp(uv.x, uv.y)).xyz() * d2;
         // let c = vec4_from_color(self.diffuse.sample_nn(uv.x, uv.y)).xyz() * diffuse;
         // let c = vec4_from_color(self.normal.sample_lerp(uv.x, uv.y)).xyz() * diffuse;
         // let c = Vector3::ONE * 255.0 * diffuse;
@@ -126,6 +127,42 @@ impl Shader for PhongShader<'_> {
     }
 }
 
+pub struct DepthShader {
+    pub projection: Matrix4,
+    pub modelview: Matrix4,
+    // pub viewport: Matrix4,
+    pub varying_v: [Vector4; 3],
+    pub ndc_tri: [Vector3; 3],
+}
+
+static mut max_z: f32 = 0.0;
+static mut min_z: f32 = 0.0;
+
+impl Shader for DepthShader {
+    fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
+        let gl_vertex = self.projection * self.modelview * v;
+        self.varying_v[tri_index] = gl_vertex;
+        self.ndc_tri[tri_index] = (gl_vertex / gl_vertex.w).xyz();
+        // println!("gl vertex {}", gl_vertex);
+        gl_vertex
+    }
+
+    fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
+        let p = self.ndc_tri.iter().zip(bar.to_array())
+            .map(|(v, w)| *v * w)
+            .reduce(|l, r| l + r)
+            .unwrap();
+        // XXX 2000.0 ???
+        let color = Vector3::ONE * p.z;
+        unsafe {
+            max_z = f32::max(p.z, max_z);
+            min_z = f32::min(p.z, min_z);
+        }
+        *frag = color_from_ndc_vec3(color);
+
+        false
+    }
+}
 
 pub struct Texture {
     pub width: f32,
@@ -257,9 +294,9 @@ pub fn look_at_glam(eye: Vector3, center: Vector3, up: Vector3) -> Matrix4 {
     Matrix4::from_cols(mv.col(0), mv.col(1), mv.col(2), w)
 }
 
-pub fn projection(z: f32) -> Matrix4 {
+pub fn projection(coeff: f32) -> Matrix4 {
     let mut m = Matrix4::IDENTITY;
-    m.col_mut(2)[3] = -1.0 / z;
+    m.col_mut(2)[3] = coeff;
     m
 }
 
@@ -330,6 +367,62 @@ impl Renderer {
         self.line(t2.x, t2.y, t0.x, t0.y, color);
     }
 
+    pub fn draw_shadow_mesh_shader(&mut self, renderer_state: &RendererState) {
+        let RendererState {
+            eye,
+            center,
+            up,
+            light_dir,
+            ..
+        } = *renderer_state;
+        let RendererState {
+            mesh,
+            diffuse,
+            normal,
+            ..
+        } = renderer_state;
+        
+        // self.viewport = viewport(
+        //     0.0, 0.0,
+        //     self.width, self.height
+        // );
+        self.viewport = viewport(
+            self.width as f32 / 8.0, self.height as f32 / 8.0,
+            self.width as f32 * 3.0/4.0, self.height as f32 * 3.0/4.0
+        );
+
+        let mut shader = DepthShader{
+            projection: projection(0.0),
+            modelview: look_at_glam(light_dir, center, up.normalize()),
+            // viewport: self.viewport,
+            varying_v: [Vector4::ZERO; 3],
+            ndc_tri: [Vector3::ZERO; 3],
+        };
+
+        println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
+        // println!("glam mv {}", Matrix4::look_at_rh(eye, center, up));
+
+        let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];
+        let mut vs: [Vector4; 3] = [Vector4::ZERO; 3];
+
+        for tri_indexes in mesh.indexes.chunks_exact(3) {
+            for (i, index) in tri_indexes.iter().enumerate() {
+                let v = mesh.vs[index.vertex];
+                vs[i] = Vector4::new(v.x, v.y, v.z, 1.0);
+            }
+            
+            // project vertices into screen space points (same as shader's varying_v)
+            for i in 0..vs.len() {
+                pts[i] = shader.vertex(vs[i], Vector4::ZERO, Vector2::ZERO, i);
+            }
+            
+            self.triangle_shade(&shader, pts);
+        }
+        unsafe {
+            println!("depth shader max_z {} min_z {}", max_z, min_z);
+        }
+    }
+
     pub fn draw_mesh_shader(&mut self, renderer_state: &RendererState) {
         let RendererState {
             eye,
@@ -351,7 +444,7 @@ impl Renderer {
         );
 
         let mut shader = PhongShader{
-            projection: projection((eye - center).length()),
+            projection: projection(1.0 / (eye - center).length()),
             modelview: look_at_glam(eye, center, up.normalize()),
             light_dir: light_dir.normalize(),
             varying_v: [Vector4::ZERO; 3],
@@ -363,8 +456,6 @@ impl Renderer {
         };
 
         println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
-        diffuse.log_debug();
-        normal.log_debug();
         // println!("glam mv {}", Matrix4::look_at_rh(eye, center, up));
 
         let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];

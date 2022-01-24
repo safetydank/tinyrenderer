@@ -49,6 +49,12 @@ pub fn color_from_vec4(v: Vector4) -> u32 {
     (r << 24) | (g << 16) | (b << 8) | a
 }
 
+pub fn color_from_ndc_vec3(v: Vector3) -> u32 {
+    let rgb = (v + Vector3::ONE) * 0.5;
+    let a = 1.0;
+    color_from_vec4(Vector4::new(rgb.x, rgb.y, rgb.z, a) * 255.0)
+}
+
 //  Can't implement Into/From traits on primitive types ourselves
 pub trait Cast<T>: {
     fn cast(&self) -> T;
