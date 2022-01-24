@@ -72,8 +72,8 @@ pub fn buf_index<T: Mul<Output = T> + Add<Output = T> + Cast<usize>>(x: T, y: T,
     return (y * stride + x).cast();
 }
 
-pub fn buf_index_yinvert<T: Mul<Output = T> + Add<Output = T> + Sub<Output = T> + Cast<usize>>(x: T, y: T, stride: T, height: T) -> usize {
-    return ((height - y) * stride + x).cast();
+pub fn buf_index_yinvert(x: usize, y: usize, stride: usize, height: usize) -> usize {
+    ((height - y - 1) * stride) + x
 }
 
 pub fn save_png(path_str: &str, width: u32, height: u32, buf: &[u32]) {

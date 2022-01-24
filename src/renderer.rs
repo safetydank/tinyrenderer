@@ -67,13 +67,15 @@ pub trait Shader {
 pub struct PhongShader<'a> {
     pub projection: Matrix4,
     pub modelview: Matrix4,
+    pub shadow_matrix: Matrix4,
     pub light_dir: Vector3,
     pub varying_v: [Vector4; 3],
     pub varying_n: [Vector3; 3],
     pub varying_uv: [Vector2; 3],
     pub ndc_tri: [Vector3; 3],
     pub diffuse: &'a Texture,
-    pub normal: &'a Texture
+    pub normal: &'a Texture,
+    pub shadow: &'a Texture,
 }
 
 impl Shader for PhongShader<'_> {
@@ -88,6 +90,11 @@ impl Shader for PhongShader<'_> {
     }
 
     fn fragment(&self, bar: Vector3, frag: &mut u32) -> bool {
+        let p = self.ndc_tri.iter().zip(bar.to_array())
+            .map(|(v, w)| *v * w)
+            .reduce(|l, r| l + r)
+            .unwrap();
+
         let bn = self.varying_n.iter().zip(bar.to_array())
             .map(|(n, w)| *n * w)
             .reduce(|l, r| l + r)
@@ -116,7 +123,13 @@ impl Shader for PhongShader<'_> {
         let diffuse = f32::max(0.0, Vector3::dot(n, self.light_dir));
         let d2 = 1.0 - (1.0 - diffuse) * (1.0 - diffuse);
 
-        let c = vec4_from_color(self.diffuse.sample_lerp(uv.x, uv.y)).xyz() * d2;
+        //  look up shadow factor
+        let mut sbp = self.shadow_matrix * Vector4::new(p.x, p.y, p.z, 1.0);
+        sbp = sbp / sbp.w;
+        let shadow_map_z = vec3_normal_from_color(self.shadow.lookup_yinvert(sbp.x, sbp.y));
+        let shadow = if shadow_map_z.z < sbp.z { 1.0 } else { 0.3 };
+
+        let c = vec4_from_color(self.diffuse.sample_lerp(uv.x, uv.y)).xyz() * d2 * shadow;
         // let c = vec4_from_color(self.diffuse.sample_nn(uv.x, uv.y)).xyz() * diffuse;
         // let c = vec4_from_color(self.normal.sample_lerp(uv.x, uv.y)).xyz() * diffuse;
         // let c = Vector3::ONE * 255.0 * diffuse;
@@ -135,9 +148,6 @@ pub struct DepthShader {
     pub ndc_tri: [Vector3; 3],
 }
 
-static mut max_z: f32 = 0.0;
-static mut min_z: f32 = 0.0;
-
 impl Shader for DepthShader {
     fn vertex(&mut self, v: Vector4, n: Vector4, uv: Vector2, tri_index: usize) -> Vector4 {
         let gl_vertex = self.projection * self.modelview * v;
@@ -154,10 +164,6 @@ impl Shader for DepthShader {
             .unwrap();
         // XXX 2000.0 ???
         let color = Vector3::ONE * p.z;
-        unsafe {
-            max_z = f32::max(p.z, max_z);
-            min_z = f32::min(p.z, min_z);
-        }
         *frag = color_from_ndc_vec3(color);
 
         false
@@ -176,6 +182,11 @@ impl Texture {
         self.buf[index]
     }
     
+    pub fn lookup_yinvert(&self, x: f32, y: f32) -> u32 {
+        let index = buf_index_yinvert(x as usize, y as usize, self.width as usize, self.height as usize);
+        self.buf[index]
+    }
+
     pub fn lookup_frag(&self, x: f32, y: f32) -> Vector4 {
         vec4_from_color(self.lookup(x, y))
     }
@@ -382,16 +393,13 @@ impl Renderer {
             ..
         } = renderer_state;
         
-        // self.viewport = viewport(
-        //     0.0, 0.0,
-        //     self.width, self.height
-        // );
         self.viewport = viewport(
             self.width as f32 / 8.0, self.height as f32 / 8.0,
             self.width as f32 * 3.0/4.0, self.height as f32 * 3.0/4.0
         );
 
-        let mut shader = DepthShader{
+        //  Draw depth scene from light POV
+        let mut depth_shader = DepthShader{
             projection: projection(0.0),
             modelview: look_at_glam(light_dir, center, up.normalize()),
             // viewport: self.viewport,
@@ -399,11 +407,13 @@ impl Renderer {
             ndc_tri: [Vector3::ZERO; 3],
         };
 
-        println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
+        println!("DEPTH: vp {}\nproj {}\nmv {}\n", self.viewport, depth_shader.projection, depth_shader.modelview);
         // println!("glam mv {}", Matrix4::look_at_rh(eye, center, up));
 
         let mut pts: [Vector4; 3] = [Vector4::ZERO; 3];
         let mut vs: [Vector4; 3] = [Vector4::ZERO; 3];
+        let mut ns: [Vector4; 3] = [Vector4::ZERO; 3];
+        let mut uvs: [Vector2; 3] = [Vector2::ZERO; 3];
 
         for tri_indexes in mesh.indexes.chunks_exact(3) {
             for (i, index) in tri_indexes.iter().enumerate() {
@@ -413,13 +423,57 @@ impl Renderer {
             
             // project vertices into screen space points (same as shader's varying_v)
             for i in 0..vs.len() {
-                pts[i] = shader.vertex(vs[i], Vector4::ZERO, Vector2::ZERO, i);
+                pts[i] = depth_shader.vertex(vs[i], Vector4::ZERO, Vector2::ZERO, i);
+            }
+            
+            self.triangle_shade(&depth_shader, pts);
+        }
+        
+        //  Copy framebuffer to shadow texture
+        let shadow_texture = Texture{
+            width: self.width as f32,
+            height: self.height as f32,
+            buf: self.buf.clone(),
+        };
+        shadow_texture.log_debug();
+        
+        //  Now draw scene with Phong shader and shadow map
+        let m = self.viewport * depth_shader.projection * depth_shader.modelview;
+        let projection = projection(1.0 / (eye - center).length());
+        let modelview = look_at_glam(eye, center, up.normalize());
+
+        let mut shader = PhongShader{
+            projection,
+            modelview,
+            light_dir: light_dir.normalize(),
+            varying_v: [Vector4::ZERO; 3],
+            varying_n: [Vector3::ZERO; 3],
+            varying_uv: [Vector2::ZERO; 3],
+            ndc_tri: [Vector3::ZERO; 3],
+            diffuse,
+            normal,
+            shadow_matrix: m * (projection * modelview).inverse(),
+            shadow: &shadow_texture
+        };
+
+        println!("PHONG: vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
+        self.clear();
+
+        for tri_indexes in mesh.indexes.chunks_exact(3) {
+            for (i, index) in tri_indexes.iter().enumerate() {
+                let v = mesh.vs[index.vertex];
+                vs[i] = Vector4::new(v.x, v.y, v.z, 1.0);
+                let n = mesh.ns[index.normal];
+                ns[i] = Vector4::new(n.x, n.y, n.z, 0.0);
+                uvs[i] = mesh.tex[index.tex];
+            }
+            
+            // project vertices into screen space points (same as shader's varying_v)
+            for i in 0..vs.len() {
+                pts[i] = shader.vertex(vs[i], ns[i], uvs[i], i);
             }
             
             self.triangle_shade(&shader, pts);
-        }
-        unsafe {
-            println!("depth shader max_z {} min_z {}", max_z, min_z);
         }
     }
 
@@ -453,6 +507,8 @@ impl Renderer {
             ndc_tri: [Vector3::ZERO; 3],
             diffuse,
             normal,
+            shadow_matrix: todo!(),
+            shadow: todo!(),
         };
 
         println!("vp {}\nproj {}\nmv {}\n", self.viewport, shader.projection, shader.modelview);
@@ -509,7 +565,10 @@ impl Renderer {
                 
                 let frag_depth = Vector3::dot(Vector3::new(pts[0].z, pts[1].z, pts[2].z), bc_clip);
                 // println!("Frag depth {}", frag_depth);
-                let zindex = buf_index_yinvert(x, y, self.width, self.height);
+                let zindex = buf_index_yinvert(x as usize, y as usize, self.width as usize, self.height as usize);
+                if zindex > ((self.width * self.height) as usize) {
+                    println!("ERROR? zindex {} x {} y {} width {} height {}", zindex, x, y, self.width, self.height);
+                }
                 if self.zbuf[zindex] > frag_depth {
                     continue
                 }
